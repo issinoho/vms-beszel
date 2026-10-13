@@ -1,0 +1,4 @@
+# Copy to tools/hub.conf (not committed): the beszel hub used for the
+# compatibility tests.  HUB_VERSION must match upstream.conf UPSTREAM_VERSION.
+HUB_URL=http://<hub-host>:8090
+HUB_VERSION=0.21.0
