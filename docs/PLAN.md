@@ -113,7 +113,7 @@ the test oracle**:
    connection times out after 120 s of silence.
 5. On disconnect, the agent reconnects with backoff, and verifies the hub again.
 
-## Metric mapping (to be confirmed by the Phase 0 probes)
+## Metric mapping (first draft; superseded by D9 after the Phase 0 probes)
 
 | beszel field | OpenVMS source | Notes |
 |---|---|---|
@@ -183,7 +183,7 @@ Each phase ends with a report (`docs/PHASE<n>.md`) and an exit review by the use
 - Startup procedure (`SYS$STARTUP:BESZEL$STARTUP.COM`), detached process, restart on
   failure, a log file with versions kept, and a clean stop.
 - Disconnection tests: hub restart, a network drop, a wrong `KEY` (must refuse), a wrong
-  token, TLS with `CA_CERT_FILE`, and the hub behind a reverse proxy with `HUB_HEADERS`.
+  token, TLS with `CA_CERT_FILE` and with the kit's CA bundle, and the hub behind a reverse proxy.
 - A 24-hour soak test on both nodes: memory flat, no handle leaks, gaps only where the
   hub was down.
 - Security review: TLS checks, key handling, file protections, and fuzzing of the CBOR and

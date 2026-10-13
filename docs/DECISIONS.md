@@ -75,8 +75,15 @@ libcurl would provide.
 `BESZEL$ROOT:[CONF]AGENT.CONF`, one `NAME=value` per line, `#` comments. The names are
 upstream's environment variables, so beszel's documentation and the hub's "add system"
 dialog apply directly: `HUB_URL`, `TOKEN` or `TOKEN_FILE`, `KEY` or `KEY_FILE`,
-`CA_CERT_FILE`, `HUB_HEADERS`, `SYSTEM_NAME`, `FILESYSTEM`, `EXTRA_FILESYSTEMS`, `NICS`,
-`LOG_LEVEL`, `DATA_DIR`. A logical name `BESZEL$<NAME>` (process, then system table)
+`CA_CERT_FILE`, `SYSTEM_NAME`, `FILESYSTEM`, `EXTRA_FILESYSTEMS`, `NICS`, `LOG_LEVEL`,
+`DATA_DIR`. Parsing follows PROTOCOL.md section 7.
+
+*Phase 0 revision:* `HUB_HEADERS` is dropped. It is not in 0.21.0 (PROTOCOL.md 1.2; I had
+read it from upstream's development branch), and the agent sends exactly upstream's three
+headers. It comes back when an upstream release with it is pinned. SSL3 loads no CA store
+for us (NOTES.md 20): with `https` hubs the agent verifies against `CA_CERT_FILE` if set,
+and otherwise against a CA bundle shipped in the kit (the same curl.se bundle vms-curl
+ships). It never skips verification. A logical name `BESZEL$<NAME>` (process, then system table)
 overrides a file entry, as upstream's `BESZEL_AGENT_<NAME>` environment variables do.
 The file holds the token, a secret, so the kit creates it as
 `(S:RWED,O:RWED,G,W)` owned by the BESZEL account, and the agent warns at startup if it
@@ -102,15 +109,23 @@ Go is needed on the Linux workstation only.
 
 ## D7. Report the pinned upstream version; answer every action
 
-**Status:** proposed (2026-10-13). To be confirmed against the hub in Phase 1.
+**Status:** proposed (2026-10-13); backed by the Phase 0 capture (PROTOCOL.md 3.3, 9).
+Final confirmation is the Phase 1 integration test.
 
 `X-Beszel` and `Info.AgentVersion` are `0.21.0`, the pinned version, so the hub uses
 the current protocol (an `AgentResponse` wrapper and generic `Data` payloads) and
-doesn't flag the agent as outdated. Every action gets an answer: `GetData` in full;
-`CheckFingerprint` in full; `GetSmartData` an empty map; `SyncNetworkMonitors` an empty
-`SyncResponse`, or an error, whichever the hub handles silently (Phase 0 decides); the
-container, systemd, ZFS and package-update actions an `Error` naming the feature as
-unsupported on OpenVMS. `Os` is always 0 (Linux), with `OsName` "OpenVMS E9.2-4",
+doesn't flag the agent as outdated. Each action gets the reply in PROTOCOL.md 3.3, which
+mirrors what upstream sends on a bare host wherever that is silent on the hub:
+- `GetData`: always data, never `Error`. An error makes the hub drop the WebSocket and mark
+  the system down.
+- `CheckFingerprint`: legacy key 2.
+- `GetSmartData`: `{0:Id}`, as upstream without smartctl (captured).
+- `SyncNetworkMonitors`: upstream's exact zero `SyncResponse`,
+  `{0:Id, 7:{0:{8:0,10:0,11:0,12:0}}}` (captured). An error here would make the hub log
+  a warning every minute.
+- `GetZfsData`: upstream's "complete, no pools" reply.
+- Container, systemd and package actions (which the UI never sends for a system that
+  reports none of them): the replies in 3.3. `Os` is always 0 (Linux), with `OsName` "OpenVMS E9.2-4",
 because the 0.21.0 UI knows only four values (`info-bar.tsx`: `osInfo[os]` is used
 without a fallback).
 
@@ -129,8 +144,48 @@ with only the privileges the Phase 0 probes prove necessary.
 
 ## D9. Metric mapping
 
-**Status:** open. Phase 0 decides each row of the table in PLAN.md.
+**Status:** proposed (2026-10-13) from the Phase 0 probes (NOTES.md). For the user to
+review at the Phase 0 exit.
 
-Principles: a value comes from a documented system interface or is omitted. Derived
+Principles: a value comes from a documented system interface or is left out. Derived
 values (load average) are computed the way Linux defines them and documented as derived.
-No field is filled with a guess to make a chart look populated.
+No field is filled with a guess to make a chart look populated. Units are upstream's
+(PROTOCOL.md 4.4–4.7). Everything below works without privilege, on both nodes.
+
+| beszel field | Source | Rule |
+|---|---|---|
+| Cpu, per-core `cpus` | `RMI$_MODES`, per CPU, deltas over the request's interval | total = `[0]..[6]`, idle = `[7]`; busy = total − idle |
+| `cpub` [user, system, iowait, steal, idle] | the same | user = user + super; system = kernel + exec + MP synch + interrupt (`[0]−[7]`, clamped at 0) + compat; **iowait = 0**, **steal = 0** (VMS doesn't measure them); idle. "Other" is then 0. |
+| LoadAvg [1, 5, 15] | `RMI$_CUR + RMI$_COM + RMI$_COMO`, sampled every 5 s | Linux's exponential damping (constants 1884/2014/2037 over 2048, as `calc_load`). **Derived**, and documented as such. It starts at 0 at agent start, as Linux does at boot. |
+| Mem, MemUsed, MemPct | `SYI$_MEMSIZE` × `SYI$_PAGE_SIZE`; free = `RMI$_FRLIST`; used = total − free − `RMI$_MODLIST` | The modified list is reclaimable cache, like Linux's dirty page cache. |
+| MemBuffCache | XFC allocated size | **Open:** `RMI$_CACHE_MEMORY` returns 0. Phase 2 looks for the XFC interface; until then send 0 (the field is required, and 0 is valid). |
+| Swap, SwapUsed | the page files plus the swap files, from `SYI$_PAGEFILE_*` and `SYI$_SWAPFILE_*` | used = page − free. The chart shows only when used > 0 (PROTOCOL.md 4.8). |
+| DiskTotal, DiskUsed, DiskPct (root) | `$GETDVI` MAXBLOCK, FREEBLOCKS on `SYS$SYSDEVICE` (or `FILESYSTEM`) | 512-byte blocks; pct = used / total (no root reserve on ODS-5, so gopsutil's used/(used+avail) is the same) |
+| ExtraFs | the same, for each disk in `EXTRA_FILESYSTEMS` | Upstream's syntax, with VMS device names (`DKA200:__tools`). |
+| **Disk I/O** (`dio`, `dr`, `dw`, `diot`, `dios`) | `DVI$_OPCNT`: operation counts only | **Not sent.** There is no byte counter (NOTES.md 9), and operations × a guessed size would be invented data. The UI then hides the disk I/O chart, as it does for upstream on a machine without I/O counters. Revisit if Phase 2 finds per-volume XFC byte statistics. |
+| Bandwidth, `ni` | LAN device counters (`$QIO` read-counters, unit 0) | B/s from deltas; per NIC as upstream. Devices with no traffic are skipped unless named in `NICS`. **Open:** 32-bit counters that may latch (NOTES.md 13); Phase 2 checks, and finds LANCP's wider interface if needed. |
+| Uptime | `SYI$_BOOTTIME` and the current time | seconds |
+| Details.Hostname | TCP/IP host name (`gethostname`), else `SYI$_NODENAME` | |
+| Details.Kernel | `"OpenVMS " + SYI$_VERSION` (`"OpenVMS E9.2-4"`) | the tooltip |
+| Details.OsName | `"OpenVMS " + SYI$_VERSION`, plus `" (x86-64)"`/`" (Integrity)"` | the visible text, next to the Tux icon (D7) |
+| Details.CpuModel | `SYI$_HW_NAME` | "QEMU Standard PC (Q35 + ICH9, 2009)", "HP rx2660 (1.59GHz/6.0MB)" |
+| Details.Cores, Threads, Info.Threads | `SYI$_ACTIVECPU_CNT` | VMS doesn't report cores and threads separately |
+| Details.Arch | `SYI$_ARCH_NAME` | "x86_64", "IA64" |
+| Details.MemoryTotal | MEMSIZE × PAGE_SIZE | bytes |
+| Fingerprint | SHA-256 of the 32 hex digits of `SYI$_SYSTEM_UUID` (as `F$GETSYI` prints it), first 24 bytes as hex; if the UUID is all zeros, of hostname + CPU model, as upstream. Saved in `[DATA]FINGERPRINT.` | upstream's `generateFingerprint`, with the UUID standing in for `host.HostID()` |
+| Temperatures, fans, GPU, batteries, Wi-Fi, ZFS, containers, systemd, package updates | none | absent, exactly as upstream on a machine without them (Containers is always `null`, Monitors always `{}`) |
+
+## D10. Reference tooling and golden fixtures
+
+**Status:** proposed (2026-10-13).
+
+The reference is upstream's **release binaries** (hub and agent, linux/amd64, verified
+against the release checksums), not a source build: they are what users run, and building
+the hub would need the web UI toolchain. `tools/fetch.sh --ref` fetches them into `cache/ref/`.
+`tools/refhub.sh` runs a private hub on 127.0.0.1:18090. `tools/wscap.py`, `wsdecode.py` and
+`rtsub.py` capture and decode sessions. Go 1.27.2 (for the D6 conformance tests) is
+unpacked in `cache/toolchain/`, verified against go.dev's SHA-256.
+
+Captures of the upstream agent hold the workstation's real data (sensors, services, SSID),
+so they stay in `out/` and are **never committed**. Committed fixtures are produced by our
+stub platform with synthetic data, and checked against upstream's structs (D6).

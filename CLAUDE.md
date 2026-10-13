@@ -43,9 +43,24 @@ in code or docs cites the upstream file it came from.
   agent if it does.
 - **The hub must not change.** If something seems to need a hub change, stop and ask.
 
+## Commands
+
+```sh
+tools/fetch.sh [--ref]               # pinned upstream tree -> cache/; --ref: release binaries -> cache/ref
+tools/refhub.sh start|init <name>|api <path>|stop   # private reference hub on 127.0.0.1:18090
+tools/wscap.py 18091 127.0.0.1:18090 <file>         # logging proxy between an agent and a hub
+tools/wsdecode.py <file> [--redact TOKEN] [--frames-dir DIR]   # decode a capture
+tools/rtsub.py <hub> <auth> <system-id> <secs>      # hold the hub's real-time view open
+tools/vms.sh <node> dcl|run|batch|put|get ...       # remote work; probes run as batch jobs
+```
+
+The Go toolchain for the conformance tests is `cache/toolchain/go/bin/go`.
+
 ## OpenVMS
 
-Undefined symbols are *warnings* on VMS: check `$SEVERITY` after every LINK. Build from
+Read `docs/NOTES.md` before touching system-service code: `$GETRMI` wants exact item
+sizes, `RMI$_MODES` return lengths are wrong, and `SYS$LIB_C.TLB` text must never be
+copied into the repo. Undefined symbols are *warnings* on VMS: check `$SEVERITY` after every LINK. Build from
 CLEAN after changing headers or qualifiers. C diagnostics go to SYS$ERROR: `define
 sys$error sys$output` in procedures run by vms.sh. Take item codes from the headers on the
 node (`LIBRARY/EXTRACT` from `SYS$STARLET_C.TLB`), never from memory. The sibling
