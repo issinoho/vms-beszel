@@ -210,3 +210,35 @@ Each one changes only what happens with input upstream accepts by accident:
 Alternative: copy upstream exactly. Rejected for (1) because it is a silent security
 downgrade. For (2) and (3) the difference is invisible on Linux-style names and only helps
 on VMS.
+
+## D12. Never run as a system account or with privileges
+
+**Status:** approved by the user (2026-10-14), from security review M2.
+
+With no `BESZEL$USER`, the agent ran as whoever started it, which is SYSTEM at boot.
+`SET PROCESS/PRIVILEGES=(NOALL,…)` clears only the current privileges, and any code
+running in the process can turn the authorized ones back on. A system-group UIC also
+reaches files that a normal account can't. So:
+
+- **START refuses** when the account it would use has a UIC in a system group (at or
+  below SYSGEN `MAXSYSGROUP`) or isn't a known account. This covers an unset
+  `BESZEL$USER` started by SYSTEM, and a misspelt `BESZEL$USER`.
+- **The agent refuses to run**, at start, if its process holds any authorized privilege
+  beyond NETMBX and TMPMBX, or has a system-group UIC. This check is in the image, so it
+  also applies outside the procedures.
+- There is no override. The kit (Phase 4) creates the `BESZEL` account.
+
+Alternative: warn and run anyway. Rejected by the user.
+
+## D13. Warn about plain-http hubs
+
+**Status:** approved by the user (2026-10-14), from security review M3.
+
+Over `http://` the token is sent before the hub proves itself, so someone on the network
+path could relay it to the real hub, relay the signature back, and pose as this system.
+Beszel's agent allows `http://`, and LAN hubs commonly use it. So the agent accepts it,
+but logs a WARN at every start when `HUB_URL` is `http://` to anything other than
+loopback.
+
+Alternative: refuse `http://` unless an opt-in setting is given. Rejected as an extra step
+that beszel's agent doesn't need.
