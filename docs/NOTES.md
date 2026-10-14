@@ -124,6 +124,25 @@ OpenVMS V8.4-2L3 on an rx2660 (1 active CPU, VSI C 7.4-001).
     - IA64: busy 21.88% vs 21.7%; user + super 8.69 vs 8.70; kernel + exec + interrupt
       13.19 vs 12.88; memory in use 2.32 vs 2.31 GB.
 
+29. **On x86, idle `[7]` can advance more than `[0]` within an interval**, although `[0]`
+    includes idle. With totals summed from cumulative counters, the x86 breakdown added up
+    to 102.7%. The platform now builds each CPU's times from interval deltas: total =
+    max(Δ[0], Δ[7]) + the other modes, interrupt = max(0, Δ[0] − Δ[7]). After the change
+    the breakdown sums to exactly 100.00 (x86: 5.57 + 33.77 + 60.66), and busy 39.34%
+    compares with MONITOR's 37.8% over a window about a second apart.
+
+30. **`RMI$_CUR` counts the agent itself**: it is the current process while it asks. On an
+    idle IA64 node (97% idle) the derived load average sat at about 1.0. Linux's
+    `calc_load` runs in the kernel and never counts its sampler, so the agent subtracts
+    itself: run queue = CUR − 1 + COM + COMO.
+
+31. **Runs against a hub (Phase 2):** both nodes ran the agent unprivileged, 5 minutes at a
+    time, against the private reference hub, which was bound to the workstation's LAN
+    address for the test and then stopped. Every minute's record arrived. The CPU breakdown
+    sums to 100. The load average reads 0.02–0.06 on the idle IA64 node and 0.2–0.5 on x86.
+    The `%SET-W-NOTSET ... DKA800:` line in every IA64 batch log comes from that node's
+    login procedure, before any of our commands run.
+
 ## Linux workstation
 
 21. **`pkill -f <pattern>` matches the shell running it** and killed the tool's own command

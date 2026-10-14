@@ -50,6 +50,10 @@ struct iosb {
 };
 
 static volatile sig_atomic_t stop_flag;
+/* per-CPU mode counters: the last raw reading and our accumulated times */
+static unsigned int cpu_prev[BZ_MAX_CPU][8];
+static struct bz_cpu_times cpu_acc[BZ_MAX_CPU];
+static int cpu_n = -1, cpu_have;
 static unsigned int page_size = 8192;
 static int cur_size;                    /* RMI$_CUR item size, found at init */
 
@@ -491,26 +495,40 @@ int bz_plat_sample(struct bz_sample *s)
             }
             ncpu = BZ_MAX_CPU;
         }
+        if ((int)ncpu != cpu_n) {        /* the CPU set changed: start again */
+            memset(cpu_prev, 0, sizeof cpu_prev);
+            memset(cpu_acc, 0, sizeof cpu_acc);
+            cpu_n = (int)ncpu;
+            cpu_have = 0;
+        }
         for (i = 0; i < ncpu; i++) {
-            unsigned int l[8];
-            uint64_t total, intr, busy;
-            struct bz_cpu_times *c = &s->cpu[i];
+            unsigned int l[8], d[8];
+            struct bz_cpu_times *c = &cpu_acc[i];
             int k;
             memcpy(l, modes + 4 + i * 33 + 1, sizeof l);
-            for (total = 0, k = 0; k < 7; k++)
-                total += l[k];
-            /* interrupt = [0] - [7]; it can run slightly negative on x86 (NOTES.md 4) */
-            intr = l[0] > l[7] ? l[0] - l[7] : 0;
-            busy = intr + l[1] + l[2] + l[3] + l[4] + l[5] + l[6];
-            c->total = total;
-            c->idle = l[7];
-            c->user = (uint64_t)l[5] + l[4];                          /* user + super */
-            c->system = busy - c->user;                               /* kernel, exec, MP synch, interrupt, compat */
+            /* Accumulate from deltas: [0] includes idle, but on x86 [7] can
+               advance more than [0] in an interval (NOTES.md 4, 29).  Each
+               interval's total is max(d0, d7) plus the other modes, so busy,
+               idle, user and system always add up to the total. */
+            for (k = 0; k < 8; k++)
+                d[k] = cpu_have ? l[k] - cpu_prev[i][k] : 0;   /* mod 2^32; 0 on the first reading */
+            memcpy(cpu_prev[i], l, sizeof l);
+            {
+                uint64_t intr = d[0] > d[7] ? d[0] - d[7] : 0;
+                uint64_t user = (uint64_t)d[5] + d[4];                         /* user + super */
+                uint64_t sys = intr + d[1] + d[2] + d[3] + d[6];                /* kernel, exec, MP synch, interrupt, compat */
+                c->total += (d[0] > d[7] ? d[0] : d[7]) + d[1] + d[2] + d[3] + d[4] + d[5] + d[6];
+                c->idle += d[7];
+                c->user += user;
+                c->system += sys;
+            }
+            s->cpu[i] = *c;
             s->all.total += c->total;
             s->all.idle += c->idle;
             s->all.user += c->user;
             s->all.system += c->system;
         }
+        cpu_have = 1;
         s->ncpu = (int)ncpu;
     }
 
@@ -571,12 +589,16 @@ void bz_plat_fs_usage(const char *dev, struct bz_fs_usage *u)
 
 double bz_plat_runq(void)
 {
-    /* running and runnable processes: CUR + COM + COMO (D9).  Also keeps the
-       LAN counters sampled at least every 5 s, so a 32-bit wrap is never
-       missed (4 GiB takes 34 s at 1 Gb/s). */
+    /* Running and runnable processes: CUR + COM + COMO (D9), less one: this
+       process is necessarily current while it asks, and Linux's in-kernel
+       sample never counts its sampler (NOTES.md 30).  Also keeps the LAN
+       counters sampled at least every 5 s, so a 32-bit wrap is never missed
+       (4 GiB takes 34 s at 1 Gb/s). */
+    uint64_t cur;
     if (bz_plat_now_ms() - nic_last_ms >= 5000)
         nic_refresh();
-    return (double)(rmi_u(RMI$_CUR, cur_size ? cur_size : 4) + rmi_u(RMI$_COM, 4) + rmi_u(RMI$_COMO, 4));
+    cur = rmi_u(RMI$_CUR, cur_size ? cur_size : 4);
+    return (double)((cur ? cur - 1 : 0) + rmi_u(RMI$_COM, 4) + rmi_u(RMI$_COMO, 4));
 }
 
 int bz_plat_stop_requested(void)

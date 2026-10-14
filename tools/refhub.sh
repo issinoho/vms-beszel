@@ -13,7 +13,9 @@
 set -euo pipefail
 root=$(cd "$(dirname "$0")/.." && pwd)
 port=${REFHUB_PORT:-18090}
-base=http://127.0.0.1:$port
+# REFHUB_BIND=<lan-address> lets the VMS nodes reach it (Phase 2); default loopback only
+bind=${REFHUB_BIND:-127.0.0.1}
+base=http://$bind:$port
 dir=$root/out/refhub
 hub=$root/cache/ref/beszel_linux_amd64/beszel
 email=ref@example.invalid
@@ -26,7 +28,7 @@ auth() {
 case ${1:-} in
 start)
     [ -f "$dir/hub.pid" ] && kill -0 "$(cat "$dir/hub.pid")" 2>/dev/null && { echo "running"; exit 0; }
-    setsid nohup "$hub" serve --http "127.0.0.1:$port" --dir "$dir/data" >"$dir/hub.log" 2>&1 &
+    setsid nohup "$hub" serve --http "$bind:$port" --dir "$dir/data" >"$dir/hub.log" 2>&1 &
     echo $! >"$dir/hub.pid"
     for _ in $(seq 50); do curl -sf "$base/api/health" >/dev/null && { echo "hub up on $base"; exit 0; }; sleep 0.2; done
     echo "hub did not start; see $dir/hub.log" >&2; exit 1 ;;
