@@ -156,7 +156,7 @@ OpenVMS V8.4-2L3 on an rx2660 (1 active CPU, VSI C 7.4-001).
     context is now built once per process instead of once per connection, so a reconnect
     doesn't pay it again. Checked on Linux under ASan, with a proxy reset forcing a TLS
     reconnect.
-35. **Your hub (2026-10-14):** `https://<hub-host>`, 0.21.0 behind openresty
+35. **The user's hub (2026-10-14):** `https://<hub-host>`, 0.21.0 behind openresty
     (Nginx Proxy Manager) with a Let's Encrypt certificate. It resolves to the public
     address, and the nodes reach it through the router's hairpin NAT. Both nodes connected
     at 21:41 using the kit's CA bundle, and the user saw both systems up.
