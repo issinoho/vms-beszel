@@ -17,7 +17,8 @@ belongs to the [vms-* family](https://openvms.issinoho.com) of open-source tools
   your OpenVMS system.
 - **The hub must prove who it is.** The agent answers only a hub that signs your token with the
   private key matching the public key you configure.
-- **No privileges.** The agent runs as a detached process with NETMBX and TMPMBX only.
+- **No privileges.** The agent runs as its own account, with NETMBX and TMPMBX only. It
+  refuses to run as SYSTEM, or as any account with more.
 - **Light:** a working set of a few megabytes. After the first connection (a few seconds of CPU
   for the TLS handshake on x86), it uses very little CPU between the hub's once-a-minute requests.
 
@@ -98,7 +99,7 @@ Then lay out the agent's directory tree, on any disk (here `SYS$SYSDEVICE:[BESZE
 ```
 $ CREATE/DIRECTORY SYS$SYSDEVICE:[BESZEL.BIN], [BESZEL.COM], [BESZEL.LOG]
 $ CREATE/DIRECTORY/PROTECTION=(S:RWE,O:RWE,G,W) SYS$SYSDEVICE:[BESZEL.CONF], [BESZEL.DATA]
-$ COPY [.BUILD]BESZEL_AGENT.EXE SYS$SYSDEVICE:[BESZEL.BIN]
+$ COPY [.BUILD]BESZEL_AGENT.EXE, BESZEL_LAUNCH.EXE SYS$SYSDEVICE:[BESZEL.BIN]
 $ COPY [.VMS]BESZEL$STARTUP.COM, BESZEL$RUN.COM SYS$SYSDEVICE:[BESZEL.COM]
 $ COPY [.VMS]AGENT.CONF_TEMPLATE SYS$SYSDEVICE:[BESZEL.CONF]
 $ ! the public CA certificates, for an https hub: curl.se's extract of Mozilla's store
@@ -109,33 +110,40 @@ $ DEFINE/SYSTEM/EXECUTIVE/TRANSLATION=CONCEALED BESZEL$ROOT SYS$SYSDEVICE:[BESZE
 `CACERT.PEM` comes from <https://curl.se/ca/cacert.pem>. Fetch it on a system with a browser or
 curl, and check it against curl.se's published SHA-256.
 
-### A dedicated account (recommended)
+### The agent's account
 
-Without one, the agent runs as whoever starts it, and at boot that is SYSTEM. It drops to
-NETMBX and TMPMBX, but a process with a SYSTEM UIC still reaches files a normal account can't.
-Give it an account of its own:
-- a UIC group of its own;
-- NETMBX and TMPMBX as its only authorized privileges;
-- a long random password;
-- ownership of the `BESZEL$ROOT` tree, so it can read `AGENT.CONF` and write `[DATA]` and
-  `[LOG]`.
-
-Then name it in a system logical:
+The agent won't run as SYSTEM, or as any account with privileges beyond NETMBX and TMPMBX.
+A process with a system UIC, or one authorized for privileges it could turn back on, could
+do far more than report statistics. So it needs a small account of its own. The kit will
+create it; with a from-source install, as SYSTEM:
 
 ```
+$ SET DEFAULT SYS$SYSTEM
+$ RUN AUTHORIZE
+UAF> ADD BESZEL /UIC=[377,1] /PASSWORD=<a long random one> /OWNER="beszel agent" -
+     /PRIVILEGES=(NETMBX,TMPMBX) /DEFPRIVILEGES=(NETMBX,TMPMBX) -
+     /FLAGS=(NODISUSER,DISCTLY,LOCKPWD) /LGICMD="NL:" /PWDLIFETIME=NONE -
+     /NOLOCAL /NODIALUP /NOREMOTE /NONETWORK /NOBATCH -
+     /DEVICE=SYS$SYSDEVICE /DIRECTORY=[BESZEL]
+UAF> EXIT
+$ SET FILE/OWNER=BESZEL SYS$SYSDEVICE:[BESZEL]CONF.DIR,DATA.DIR,LOG.DIR
+$ SET FILE/PROTECTION=(S:RWE,O:RWE,G:RE,W:RE) SYS$SYSDEVICE:[000000]BESZEL.DIR, -
+     SYS$SYSDEVICE:[BESZEL]BIN.DIR,COM.DIR
+$ SET FILE/PROTECTION=(S:RWED,O:RWED,G:RE,W:RE) SYS$SYSDEVICE:[BESZEL.BIN]*.*,[BESZEL.COM]*.*
 $ DEFINE/SYSTEM/EXECUTIVE BESZEL$USER BESZEL
 ```
 
-`BESZEL$STARTUP START` then runs the agent as that account. Starting a process as another user
-needs a system manager's privileges, which the system startup has. The kit will create and
-check this account for you; with a from-source install, create it with `AUTHORIZE` as you
-would any service account.
+Choose a UIC group of its own, above `MAXSYSGROUP` (8 by default). The account can't log
+in by any route: every login class is turned off. It still runs the agent, because START
+creates the agent's process under the account's identity. **Don't** give it the DISUSER
+flag: OpenVMS then refuses to create processes as it. Everything the account uses must be
+reachable by it: `[BIN]` and `[COM]` world-readable, `[CONF]`, `[DATA]` and `[LOG]` its own.
 
 ## 3. Configure
 
 ```
 $ COPY BESZEL$ROOT:[CONF]AGENT.CONF_TEMPLATE BESZEL$ROOT:[CONF]AGENT.CONF
-$ SET FILE/PROTECTION=(S:RWED,O:RWED,G,W) BESZEL$ROOT:[CONF]AGENT.CONF
+$ SET FILE/OWNER=BESZEL/PROTECTION=(S:RWED,O:RWED,G,W) BESZEL$ROOT:[CONF]AGENT.CONF
 $ EDIT BESZEL$ROOT:[CONF]AGENT.CONF
 ```
 
@@ -162,8 +170,9 @@ is optional and explained in the file:
 The names are beszel's own, as on <https://beszel.dev>. Any setting can also come from a
 logical name `BESZEL$<NAME>`, which wins over the file.
 
-The file holds the token, so keep it readable by its owner only. The agent warns in its log if
-it isn't.
+The file holds the token, so keep it readable by its owner (BESZEL) only. The agent warns in its
+log if it isn't. `EDIT` makes a new version each time: set the protection again afterwards, and
+`PURGE` the old versions, which hold the token too.
 
 **Check before you start it:** this prints what the agent would report, without contacting the
 hub:
@@ -180,10 +189,12 @@ $ @BESZEL$ROOT:[COM]BESZEL$STARTUP START
 BESZEL_AGENT started (PID 0000a1b2)
 ```
 
-Within a minute the system shows as **up** in the hub. To start it at every boot, add the
-`DEFINE` lines above, and the `@...BESZEL$STARTUP START` line, to
-`SYS$MANAGER:SYSTARTUP_VMS.COM`, after TCP/IP has started. The kit will do the defining for
-you.
+Run it as SYSTEM (or another account with IMPERSONATE and DETACH): it starts the agent as
+`BESZEL$USER`, or as the account you give as a second parameter (`START BESZEL`). It refuses
+SYSTEM itself, or an account that doesn't exist. Within a minute the system shows as **up**
+in the hub. To start it at every boot, add the two `DEFINE` lines above and the
+`@...BESZEL$STARTUP START` line to `SYS$MANAGER:SYSTARTUP_VMS.COM`, after TCP/IP has
+started. The kit will do the defining for you.
 
 | Command (`@BESZEL$ROOT:[COM]BESZEL$STARTUP ...`) | Does |
 |---|---|
@@ -210,6 +221,8 @@ The log says why. These are the messages you may see:
 | `lookup of <name> failed` | DNS: check that `TCPIP SHOW HOST <name>` works on the OpenVMS system. |
 | `connect: connection refused` / `timed out` | The hub, or a firewall, isn't letting the system in. Check `HUB_URL` and the port. |
 | `HUB_URL must start with http:// or https://` | Use the address you open in a browser, not `ws://` or `wss://`. |
+| `refusing to run the agent as SYSTEM` / `authorized for privileges beyond NETMBX and TMPMBX` | Run it as its own account (see "The agent's account"). The agent won't run as SYSTEM or with privileges. |
+| `HUB_URL is http://: the token crosses the network in clear text` | A warning, not an error. Use `https://` if anyone else could be on the path. |
 | `line N: unknown setting "..."` | A typing mistake in `AGENT.CONF`. The agent refuses settings it doesn't know. |
 
 The agent retries every 10 seconds, so you can fix the problem and simply wait. Settings,

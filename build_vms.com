@@ -30,7 +30,7 @@ $ failed = 0
 $ sources = "[.src.core]bz_buf,[.src.core]bz_cbor,[.src.core]bz_text,[.src.core]bz_conf," + -
             "[.src.core]bz_key,[.src.core]bz_url,[.src.core]bz_ws,[.src.core]bz_proto," + -
             "[.src.core]bz_stats,[.src.core]bz_agent,[.src.plat]bz_crypto_ossl," + -
-            "[.src.plat]bz_net_ossl,[.src.plat.vms]bz_plat_vms,[.src.main]bz_main," + -
+            "[.src.plat]bz_net_ossl,[.src.plat.vms]bz_plat_vms,[.src.plat.vms]bz_launch,[.src.main]bz_main," + -
             "[.tests.unit]test_core"
 $ i = 0
 $cc_loop:
@@ -69,6 +69,12 @@ $ link/executable=[.build]beszel_agent.exe 'core',[.build]bz_net_ossl,[.build]bz
 $ if $severity .ne. 1
 $ then
 $   say "BUILD-FAIL: link beszel_agent"
+$   exit 44
+$ endif
+$ link/executable=[.build]beszel_launch.exe [.build]bz_launch
+$ if $severity .ne. 1
+$ then
+$   say "BUILD-FAIL: link beszel_launch"
 $   exit 44
 $ endif
 $ say "BUILD-OK"

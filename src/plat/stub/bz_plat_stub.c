@@ -148,7 +148,14 @@ void bz_plat_log(int level, const char *msg)
     char ts[32];
     localtime_r(&now, &tm);
     strftime(ts, sizeof ts, "%Y/%m/%d %H:%M:%S", &tm);
-    fprintf(stderr, "%s %s %s\n", ts, names[level & 3], msg);
+    {
+        char clean[600];
+        size_t i;
+        for (i = 0; msg[i] && i < sizeof clean - 1; i++)
+            clean[i] = ((unsigned char)msg[i] < 0x20 || msg[i] == 0x7F) ? '?' : msg[i];
+        clean[i] = 0;
+        fprintf(stderr, "%s %s %s\n", ts, names[level & 3], clean);
+    }
     fflush(stderr);
 }
 
@@ -176,6 +183,13 @@ int bz_plat_init(void)
         strcpy(acc.nic[1].name, "EWB0");    /* configured, never used: no traffic */
     }
     return 1;
+}
+
+int bz_plat_check_account(char *err, size_t errlen)
+{
+    (void)err;
+    (void)errlen;
+    return 1;           /* the Linux stub is a test platform: no account rules */
 }
 
 int bz_plat_identity(struct bz_identity *id)

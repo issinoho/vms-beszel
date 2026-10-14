@@ -211,6 +211,7 @@ void bz_ws_rx_init(bz_ws_rx *rx)
     rx->op = 0;
     rx->close_code = 0;
     rx->error = NULL;
+    rx->off = 0;
 }
 
 void bz_ws_rx_free(bz_ws_rx *rx)
@@ -228,13 +229,15 @@ static enum bz_ws_event proto_error(bz_ws_rx *rx, unsigned code, const char *why
 
 enum bz_ws_event bz_ws_parse(bz_ws_rx *rx, bz_buf *in)
 {
+    if (rx->off > in->len)
+        rx->off = 0;                        /* the caller replaced the input */
     for (;;) {
-        const unsigned char *p = in->p;
-        size_t n = in->len, hl = 2;
+        const unsigned char *p = in->p + rx->off;
+        size_t n = in->len - rx->off, hl = 2;
         uint64_t plen;
         int fin, op;
         if (n < 2)
-            return BZ_WS_NEED_MORE;
+            goto need_more;
         fin = p[0] >> 7;
         op = p[0] & 15;
         if (p[0] & 0x70)
@@ -244,13 +247,13 @@ enum bz_ws_event bz_ws_parse(bz_ws_rx *rx, bz_buf *in)
         plen = p[1] & 127;
         if (plen == 126) {
             if (n < 4)
-                return BZ_WS_NEED_MORE;
+                goto need_more;
             plen = ((uint64_t)p[2] << 8) | p[3];
             hl = 4;
         } else if (plen == 127) {
             int i;
             if (n < 10)
-                return BZ_WS_NEED_MORE;
+                goto need_more;
             plen = 0;
             for (i = 2; i < 10; i++)
                 plen = (plen << 8) | p[i];
@@ -267,11 +270,11 @@ enum bz_ws_event bz_ws_parse(bz_ws_rx *rx, bz_buf *in)
         if (plen > BZ_WS_MAX_MESSAGE)
             return proto_error(rx, 1009, "message too big");
         if (n - hl < plen)
-            return BZ_WS_NEED_MORE;
+            goto need_more;
 
         if (op >= 8) {
             bz_buf_set(&rx->msg, p + hl, (size_t)plen);
-            bz_buf_consume(in, hl + (size_t)plen);
+            rx->off += hl + (size_t)plen;
             if (rx->msg.oom)
                 return proto_error(rx, 1011, "out of memory");
             rx->op = op;
@@ -300,7 +303,7 @@ enum bz_ws_event bz_ws_parse(bz_ws_rx *rx, bz_buf *in)
         if (op != BZ_WS_OP_CONT && fin) {
             /* the common case: a whole message in one frame */
             bz_buf_set(&rx->msg, p + hl, (size_t)plen);
-            bz_buf_consume(in, hl + (size_t)plen);
+            rx->off += hl + (size_t)plen;
             if (rx->msg.oom)
                 return proto_error(rx, 1011, "out of memory");
             rx->op = op;
@@ -313,7 +316,7 @@ enum bz_ws_event bz_ws_parse(bz_ws_rx *rx, bz_buf *in)
         if (rx->frag.len + plen > BZ_WS_MAX_MESSAGE)
             return proto_error(rx, 1009, "message too big");
         bz_buf_put(&rx->frag, p + hl, (size_t)plen);
-        bz_buf_consume(in, hl + (size_t)plen);
+        rx->off += hl + (size_t)plen;
         if (rx->frag.oom)
             return proto_error(rx, 1011, "out of memory");
         if (fin) {
@@ -327,4 +330,10 @@ enum bz_ws_event bz_ws_parse(bz_ws_rx *rx, bz_buf *in)
         }
         /* more fragments to come: loop for the next frame */
     }
+need_more:
+    if (rx->off) {
+        bz_buf_consume(in, rx->off);
+        rx->off = 0;
+    }
+    return BZ_WS_NEED_MORE;
 }

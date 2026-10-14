@@ -27,6 +27,8 @@
 #include <dvsdef.h>
 #include <efndef.h>
 #include <iodef.h>
+#include <jpidef.h>
+#include <prvdef.h>
 #include <lnmdef.h>
 #include <nmadef.h>
 #include <rmidef.h>
@@ -68,11 +70,16 @@ static uint64_t vms_time(void)
 
 uint64_t bz_plat_now_ms(void)
 {
-    /* the system clock can be set back; intervals must never run backwards */
-    static uint64_t last;
-    uint64_t now = vms_time() / 10000;
-    if (now < last)
+    /* The system clock can be set back.  Intervals must never run backwards,
+       and must not stand still until the clock catches up either (review
+       I7): a step back is absorbed into an offset, so time goes on from where
+       it was. */
+    static uint64_t last, adjust;
+    uint64_t now = vms_time() / 10000 + adjust;
+    if (now < last) {
+        adjust += last - now;
         now = last;
+    }
     last = now;
     return now;
 }
@@ -168,17 +175,12 @@ const char *bz_plat_default_root_fs(void)
 
 /* ---- configuration overrides: logical name BESZEL$<NAME> (D5) ---- */
 
-int bz_plat_conf_override(void *ctx, const char *name, bz_buf *out)
+static int trnlnm(const char *table, const char *lnm, char *val, unsigned short *vl)
 {
-    char lnm[64], val[256];
-    unsigned short vl = 0;
     struct item il[2];
     struct dsc$descriptor_s tab, nam;
-    static const char table[] = "LNM$FILE_DEV";
     unsigned int attr = LNM$M_CASE_BLIND;
-    int st;
-    (void)ctx;
-    snprintf(lnm, sizeof lnm, "BESZEL$%s", name);
+    uint64_t rl = 0;            /* 8 bytes of room, as for every return length (NOTES.md 23) */
     tab.dsc$w_length = (unsigned short)strlen(table);
     tab.dsc$b_dtype = DSC$K_DTYPE_T;
     tab.dsc$b_class = DSC$K_CLASS_S;
@@ -186,14 +188,27 @@ int bz_plat_conf_override(void *ctx, const char *name, bz_buf *out)
     nam.dsc$w_length = (unsigned short)strlen(lnm);
     nam.dsc$b_dtype = DSC$K_DTYPE_T;
     nam.dsc$b_class = DSC$K_CLASS_S;
-    nam.dsc$a_pointer = lnm;
+    nam.dsc$a_pointer = (char *)lnm;
     memset(il, 0, sizeof il);
-    il[0].len = sizeof val;
+    il[0].len = 255;
     il[0].code = LNM$_STRING;
     il[0].buf = val;
-    il[0].retlen = &vl;
-    st = sys$trnlnm(&attr, &tab, &nam, 0, il);
-    if (!(st & 1))
+    il[0].retlen = (unsigned short *)&rl;
+    if (!(sys$trnlnm(&attr, &tab, &nam, 0, il) & 1))
+        return 0;
+    *vl = (unsigned short)rl;
+    return 1;
+}
+
+int bz_plat_conf_override(void *ctx, const char *name, bz_buf *out)
+{
+    /* BESZEL$<NAME> in the process table, then the system table: not the job
+       or group tables, which other users can write (review L3; D5) */
+    char lnm[64], val[256];
+    unsigned short vl = 0;
+    (void)ctx;
+    snprintf(lnm, sizeof lnm, "BESZEL$%s", name);
+    if (!trnlnm("LNM$PROCESS_TABLE", lnm, val, &vl) && !trnlnm("LNM$SYSTEM_TABLE", lnm, val, &vl))
         return 0;
     bz_buf_put(out, val, vl);
     return 1;
@@ -207,8 +222,15 @@ void bz_plat_log(int level, const char *msg)
     time_t now = time(NULL);
     char ts[32];
     /* single-threaded: localtime is safe, and VSI C hides localtime_r under C99 */
+    char clean[600];
+    size_t i;
     strftime(ts, sizeof ts, "%Y-%m-%d %H:%M:%S", localtime(&now));
-    printf("%s %-5s %s\n", ts, names[level & 3], msg);
+    /* text from the hub (close reasons, HTTP status) could forge lines or
+       send terminal escapes: control characters become '?' (review L1) */
+    for (i = 0; msg[i] && i < sizeof clean - 1; i++)
+        clean[i] = ((unsigned char)msg[i] < 0x20 || msg[i] == 0x7F) ? '?' : msg[i];
+    clean[i] = 0;
+    printf("%s %-5s %s\n", ts, names[level & 3], clean);
     fflush(stdout);
 }
 
@@ -433,6 +455,37 @@ int bz_plat_init(void)
     }
     nic_open_all();
     nic_refresh();
+    return 1;
+}
+
+int bz_plat_check_account(char *err, size_t errlen)
+{
+    /* D12: authorized privileges beyond NETMBX and TMPMBX can be turned back
+       on by anything running in the process, and a system-group UIC reaches
+       files a normal account can't.  Refuse both. */
+    uint64_t auth = 0, allowed = (uint64_t)PRV$M_NETMBX | (uint64_t)PRV$M_TMPMBX;   /* the masks, from PRVDEF */
+    unsigned int grp = 0, maxsys = 8;
+    struct item il[3];
+    struct iosb iosb;
+    uint64_t rl1 = 0, rl2 = 0;
+    memset(il, 0, sizeof il);
+    il[0].len = 8; il[0].code = JPI$_AUTHPRIV; il[0].buf = &auth; il[0].retlen = (unsigned short *)&rl1;
+    il[1].len = 4; il[1].code = JPI$_GRP; il[1].buf = &grp; il[1].retlen = (unsigned short *)&rl2;
+    if (!(sys$getjpiw(EFN$C_ENF, 0, 0, il, (void *)&iosb, 0, 0) & 1) || !(iosb.st & 1)) {
+        snprintf(err, errlen, "can't read this process's privileges");
+        return 0;
+    }
+    syi(SYI$_MAXSYSGROUP, &maxsys, 4, NULL);
+    if (grp <= maxsys) {
+        snprintf(err, errlen, "this account's UIC group (%o) is a system group: run the agent as "
+                 "its own account (BESZEL$USER; DECISIONS.md D12)", grp);
+        return 0;
+    }
+    if (auth & ~allowed) {
+        snprintf(err, errlen, "this account is authorized for privileges beyond NETMBX and TMPMBX: "
+                 "run the agent as an account that has only those (BESZEL$USER; DECISIONS.md D12)");
+        return 0;
+    }
     return 1;
 }
 

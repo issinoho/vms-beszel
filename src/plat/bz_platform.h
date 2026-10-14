@@ -43,6 +43,8 @@ void bz_plat_log(int level, const char *msg);
 
 /* ---- the system ---- */
 int bz_plat_init(void);
+/* 0, with a reason, if this process must not run the agent (D12) */
+int bz_plat_check_account(char *err, size_t errlen);
 int bz_plat_identity(struct bz_identity *id);
 int bz_plat_sample(struct bz_sample *s);
 void bz_plat_fs_usage(const char *dev, struct bz_fs_usage *u);

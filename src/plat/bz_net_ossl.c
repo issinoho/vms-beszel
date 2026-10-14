@@ -4,6 +4,11 @@
  * the Phase 0 probe showed non-blocking connect + select() and a TLS 1.3
  * handshake working unprivileged on both nodes (NOTES.md 19, 20).
  *
+ * The socket is non-blocking for its whole life, and every operation has a
+ * deadline (security review M1): a peer that stops mid-record, or trickles a
+ * handshake, can't hang the agent, whose own timers, stop file and signals
+ * keep running.
+ *
  * TLS always verifies the hub's certificate and host name (DECISIONS.md D5):
  * against the platform's CA bundle (or the system store) plus CA_CERT_FILE,
  * which upstream also adds to the system roots (PROTOCOL.md 7).
@@ -38,6 +43,30 @@ struct bz_sock {
    repeated on every reconnect.  Verification still happens per connection. */
 static SSL_CTX *tls_ctx;
 static char tls_ctx_ca[1024];
+
+#define SEND_DEADLINE_MS 30000
+
+/* wait until fd is readable (or writable) or the deadline passes: 1 ready, 0 not */
+static int wait_io(int fd, int want_write, uint64_t deadline)
+{
+    for (;;) {
+        fd_set fs;
+        struct timeval tv;
+        uint64_t now = bz_plat_now_ms();
+        int rc;
+        if (now >= deadline)
+            return 0;
+        FD_ZERO(&fs);
+        FD_SET(fd, &fs);
+        tv.tv_sec = (long)((deadline - now) / 1000);
+        tv.tv_usec = (long)((deadline - now) % 1000) * 1000;
+        rc = select(fd + 1, want_write ? NULL : &fs, want_write ? &fs : NULL, NULL, &tv);
+        if (rc > 0)
+            return 1;
+        if (rc < 0 && errno != EINTR)
+            return 0;
+    }
+}
 
 static void ossl_err(char *err, size_t errlen, const char *what)
 {
@@ -89,11 +118,7 @@ static int connect_timeout(const struct addrinfo *ai, unsigned timeout_ms, char 
             return -1;
         }
     }
-    fcntl(fd, F_SETFL, fl);                 /* blocking from here on */
-    tv.tv_sec = (long)(timeout_ms / 1000);
-    tv.tv_usec = (long)(timeout_ms % 1000) * 1000;
-    setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, (char *)&tv, sizeof tv);
-    return fd;
+    return fd;                              /* still non-blocking: see the top */
 }
 
 static int is_ip_literal(const char *host)
@@ -143,7 +168,8 @@ static SSL_CTX *tls_context(const char *ca_file, char *err, size_t errlen)
 static int tls_start(bz_sock *s, const char *host, const char *ca_file, unsigned timeout_ms,
                      char *err, size_t errlen)
 {
-    struct timeval tv;
+    uint64_t deadline = bz_plat_now_ms() + timeout_ms;
+    int r;
     SSL_CTX *ctx = tls_context(ca_file, err, errlen);
     if (!ctx)
         return 0;
@@ -165,10 +191,16 @@ static int tls_start(bz_sock *s, const char *host, const char *ca_file, unsigned
         }
     }
     SSL_set_fd(s->ssl, s->fd);
-    tv.tv_sec = (long)(timeout_ms / 1000);
-    tv.tv_usec = (long)(timeout_ms % 1000) * 1000;
-    setsockopt(s->fd, SOL_SOCKET, SO_RCVTIMEO, (char *)&tv, sizeof tv);
-    if (SSL_connect(s->ssl) != 1) {
+    /* the whole handshake within timeout_ms, however slowly the peer sends */
+    while ((r = SSL_connect(s->ssl)) != 1) {
+        int e = SSL_get_error(s->ssl, r);
+        if ((e == SSL_ERROR_WANT_READ || e == SSL_ERROR_WANT_WRITE) &&
+            wait_io(s->fd, e == SSL_ERROR_WANT_WRITE, deadline))
+            continue;
+        if (e == SSL_ERROR_WANT_READ || e == SSL_ERROR_WANT_WRITE) {
+            snprintf(err, errlen, "TLS handshake: timed out");
+            return 0;
+        }
         long v = SSL_get_verify_result(s->ssl);
         if (v == X509_V_ERR_HOSTNAME_MISMATCH || v == X509_V_ERR_IP_ADDRESS_MISMATCH)
             snprintf(err, errlen, "TLS: the hub's certificate is not for %s (%s)", host,
@@ -185,10 +217,6 @@ static int tls_start(bz_sock *s, const char *host, const char *ca_file, unsigned
             ossl_err(err, errlen, "TLS handshake");
         return 0;
     }
-    /* reads only happen after bz_net_wait says there is data */
-    tv.tv_sec = 0;
-    tv.tv_usec = 0;
-    setsockopt(s->fd, SOL_SOCKET, SO_RCVTIMEO, (char *)&tv, sizeof tv);
     return 1;
 }
 
@@ -229,20 +257,38 @@ bz_sock *bz_net_open(const char *host, const char *port, int tls, const char *ca
 
 int bz_net_send(bz_sock *s, const void *p, size_t n)
 {
+    /* all of it within SEND_DEADLINE_MS, or fail (and the caller closes) */
     const char *c = p;
+    uint64_t deadline = bz_plat_now_ms() + SEND_DEADLINE_MS;
     while (n) {
         long w;
+        int want_write = 1;
         if (s->ssl) {
             int r = SSL_write(s->ssl, c, n > 65536 ? 65536 : (int)n);
-            if (r <= 0)
-                return 0;
-            w = r;
+            if (r > 0) {
+                w = r;
+            } else {
+                int e = SSL_get_error(s->ssl, r);
+                if (e != SSL_ERROR_WANT_WRITE && e != SSL_ERROR_WANT_READ) {
+                    ERR_clear_error();
+                    return 0;
+                }
+                want_write = e == SSL_ERROR_WANT_WRITE;
+                w = 0;
+            }
         } else {
             w = (long)send(s->fd, c, n, 0);
             if (w < 0 && errno == EINTR)
                 continue;
-            if (w <= 0)
+            if (w < 0 && (errno == EAGAIN || errno == EWOULDBLOCK))
+                w = 0;
+            else if (w <= 0)
                 return 0;
+        }
+        if (w == 0) {
+            if (!wait_io(s->fd, want_write, deadline))
+                return 0;
+            continue;
         }
         c += w;
         n -= (size_t)w;
@@ -261,7 +307,7 @@ long bz_net_recv(bz_sock *s, void *p, size_t cap)
             return 0;
         case SSL_ERROR_WANT_READ:
         case SSL_ERROR_WANT_WRITE:
-            return -2;                      /* a partial record: wait again */
+            return -2;                      /* a partial record: never blocks (M1) */
         default:
             ERR_clear_error();
             return -1;
@@ -271,6 +317,8 @@ long bz_net_recv(bz_sock *s, void *p, size_t cap)
         do
             r = (long)recv(s->fd, p, cap, 0);
         while (r < 0 && errno == EINTR);
+        if (r < 0 && (errno == EAGAIN || errno == EWOULDBLOCK))
+            return -2;
         return r;
     }
 }

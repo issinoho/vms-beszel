@@ -332,7 +332,8 @@ static void test_ws(void)
     bz_buf_put(&in, "\x82\x05He", 4);
     CHECK(bz_ws_parse(&rx, &in) == BZ_WS_NEED_MORE);
     bz_buf_put(&in, "llo", 3);
-    CHECK(bz_ws_parse(&rx, &in) == BZ_WS_MESSAGE && rx.op == 2 && rx.msg.len == 5 && in.len == 0);
+    CHECK(bz_ws_parse(&rx, &in) == BZ_WS_MESSAGE && rx.op == 2 && rx.msg.len == 5);
+    CHECK(bz_ws_parse(&rx, &in) == BZ_WS_NEED_MORE && in.len == 0);   /* compacted once (L2) */
     bz_buf_put(&in, "\x02\x03Hel\x89\x02hi\x80\x02lo", 13);   /* fragment, ping, last fragment */
     CHECK(bz_ws_parse(&rx, &in) == BZ_WS_PING && rx.msg.len == 2 && memcmp(rx.msg.p, "hi", 2) == 0);
     CHECK(bz_ws_parse(&rx, &in) == BZ_WS_MESSAGE && rx.op == 2 && rx.msg.len == 5 &&
@@ -342,23 +343,29 @@ static void test_ws(void)
     bz_buf_put(&in, "\x88\x00", 2);
     CHECK(bz_ws_parse(&rx, &in) == BZ_WS_CLOSE && rx.close_code == 1005);
     bz_buf_clear(&in);
+    rx.off = 0;
     bz_buf_put(&in, "\x82\x85\x00\x00\x00\x00Hello", 11);      /* masked from a server */
     CHECK(bz_ws_parse(&rx, &in) == BZ_WS_ERROR && rx.close_code == 1002);
     bz_buf_clear(&in);
+    rx.off = 0;
     bz_buf_put(&in, "\xc2\x00", 2);                             /* RSV1 */
     CHECK(bz_ws_parse(&rx, &in) == BZ_WS_ERROR);
     bz_buf_clear(&in);
+    rx.off = 0;
     bz_buf_put(&in, "\x09\x00", 2);                             /* fragmented ping */
     CHECK(bz_ws_parse(&rx, &in) == BZ_WS_ERROR);
     bz_buf_clear(&in);
+    rx.off = 0;
     bz_buf_put(&in, "\x80\x00", 2);                             /* continuation alone */
     bz_ws_rx_free(&rx);
     bz_ws_rx_init(&rx);
     CHECK(bz_ws_parse(&rx, &in) == BZ_WS_ERROR);
     bz_buf_clear(&in);
+    rx.off = 0;
     bz_buf_put(&in, "\x82\x7f\x00\x00\x00\x00\x7f\xff\xff\xff", 10);  /* 2 GiB */
     CHECK(bz_ws_parse(&rx, &in) == BZ_WS_ERROR && rx.close_code == 1009);
     bz_buf_clear(&in);
+    rx.off = 0;
     bz_buf_put(&in, "\x83\x00", 2);                             /* reserved opcode */
     CHECK(bz_ws_parse(&rx, &in) == BZ_WS_ERROR);
     bz_ws_rx_free(&rx);
@@ -823,6 +830,37 @@ static void test_agent(void)
     CHECK(bz_agent_on_data(&a, 140010, resp, strlen(resp)) == 0);
     bz_agent_on_closed(&a, 140010);
     CHECK(!bz_agent_should_connect(&a, 149999) && bz_agent_should_connect(&a, 150000));
+
+    /* review M4: an unverified peer gets at most 10 unusable messages */
+    CHECK(bz_agent_on_connected(&a, 200000));
+    {
+        const char *kp = strstr((char *)a.out.p, "Sec-WebSocket-Key: ") + 19;
+        char r2[256];
+        memcpy(key, kp, 24);
+        key[24] = 0;
+        bz_buf_clear(&a.out);
+        snprintf(resp, sizeof resp, "%s%s", key, "258EAFA5-E914-47DA-95CA-C5AB0DC85B11");
+        bz_sha1(resp, strlen(resp), sha);
+        bz_buf_clear(&acc);
+        bz_b64_encode(&acc, sha, 20);
+        snprintf(r2, sizeof r2, "HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\n"
+                 "Connection: Upgrade\r\nSec-WebSocket-Accept: %s\r\n\r\n", (char *)acc.p);
+        CHECK(bz_agent_on_data(&a, 200010, r2, strlen(r2)) && a.state == BZ_OPEN);
+    }
+    {
+        int i, closed = 0;
+        for (i = 0; i < 12 && !closed; i++)
+            closed = !deliver(&a, 200020, 2, "\xff", 1);       /* not CBOR */
+        CHECK(closed && i == 11 && strstr(last_log, "could not be used"));
+    }
+    bz_agent_on_closed(&a, 200030);
+    /* review I6: a hub that never proves its key is dropped after 60 s */
+    CHECK(bz_agent_on_connected(&a, 300000));
+    a.state = BZ_OPEN;
+    bz_buf_clear(&a.out);
+    CHECK(bz_agent_tick(&a, 300000 + 60000));
+    CHECK(!bz_agent_tick(&a, 300001 + 60000) && strstr(last_log, "did not prove its key"));
+    bz_agent_on_closed(&a, 360002);
 
     bz_buf_free(&acc);
     bz_buf_free(&msg);

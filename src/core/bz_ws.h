@@ -56,11 +56,14 @@ typedef struct bz_ws_rx {
     int op;              /* opcode of the returned message */
     unsigned close_code;
     const char *error;
+    size_t off;          /* parsed bytes at the front of the input, removed at NEED_MORE */
 } bz_ws_rx;
 
 void bz_ws_rx_init(bz_ws_rx *rx);
 void bz_ws_rx_free(bz_ws_rx *rx);
-/* Parse the next event from the front of in; consumed bytes are removed. */
+/* Parse the next event from the front of in.  Consumed bytes are removed in
+   one move when the parser needs more (not after every frame: review L2).
+   Only append to in between calls; to start over, set rx->off to 0. */
 enum bz_ws_event bz_ws_parse(bz_ws_rx *rx, bz_buf *in);
 
 #endif

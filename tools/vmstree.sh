@@ -17,7 +17,7 @@ conf=$(mktemp)
     'set file/protection=(s:rwed,o:rwed,g,w) [.root]conf.dir,data.dir' >/dev/null
 "$v" "$node" put "$root/vms/beszel\$run.com" "$root/vms/beszel\$startup.com" -- root/com >/dev/null 2>&1 || true
 "$v" "$node" put "$conf" -- root/conf >/dev/null 2>&1 || true
-"$v" "$node" dcl "copy/nolog [.build]beszel_agent.exe [.root.bin]" \
+"$v" "$node" dcl "copy/nolog [.build]beszel_agent.exe,beszel_launch.exe [.root.bin]" \
     "rename/nolog [.root.conf]$(basename "$conf") [.root.conf]agent.conf" \
     "purge/nolog [.root.conf]agent.conf" \
     "set file/protection=(s:rwed,o:rwed,g,w) [.root.conf]agent.conf" \

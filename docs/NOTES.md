@@ -161,6 +161,34 @@ OpenVMS V8.4-2L3 on an rx2660 (1 active CPU, VSI C 7.4-001).
     address, and the nodes reach it through the router's hairpin NAT. Both nodes connected
     at 21:41 using the kit's CA bundle, and the user saw both systems up.
 
+36. **`RUN/DETACHED/UIC` can't start a process as another account** (x86, tested with
+    DETACH, IMPERSONATE and CMKRNL enabled):
+    - with LOGINOUT and `/AUTHORIZE`, LOGINOUT keeps the creator's username, reads the
+      creator's UAF record, and resets even the UIC to the creator's;
+    - with LOGINOUT and no `/AUTHORIZE`, the UIC changes, but the username and every
+      authorized privilege (SETPRV included) stay the creator's;
+    - running an image directly with `/UIC` and `/PRIVILEGES` also keeps the creator's
+      authorized privileges (`probes/probe_who.c`).
+
+    D12's check in the agent caught this: the agent refused to run.
+37. **Personas do work:** `$PERSONA_CREATE` and `$PERSONA_ASSUME` for the account, then
+    `$CREPRC` of LOGINOUT, gives a process with the account's username, UIC and only its
+    authorized privileges (`probes/probe_persona.c`). LOGINOUT then logs in as the
+    account, even with every login class (local, dial-up, remote, network, batch)
+    disallowed: a detached login is none of them. That is D14.
+38. **Details of the service account:**
+    - `AUTHORIZE ADD` copied the DEFAULT record's DisUser flag.
+    - `$PERSONA_CREATE` refuses a disusered account (SS$_USERDISABLED), so a service
+      account must not be disusered. Taking away its login classes keeps it from logging
+      in by any route.
+    - The RESTRICTED flag makes the login command procedure captive, so LOGINOUT stopped
+      with "%DCL-E-NOCMDPROC, error opening captive command procedure" when there was no
+      LOGIN.COM. Use `/LGICMD="NL:"` and no RESTRICTED.
+39. **The account must be able to reach its tree.** On IA64 the test tree's `[.ROOT]` had no
+    world access, so LOGINOUT failed with `%RMS-E-PRV`; ACCOUNTING showed the final status.
+    The procedures and images must be world-readable, and every directory on the way must
+    allow world execute. Files uploaded through sftp get no world access.
+
 ## Linux workstation
 
 21. **`pkill -f <pattern>` matches the shell running it** and killed the tool's own command

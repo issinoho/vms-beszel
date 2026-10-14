@@ -242,3 +242,29 @@ loopback.
 
 Alternative: refuse `http://` unless an opt-in setting is given. Rejected as an extra step
 that beszel's agent doesn't need.
+
+## D14. Start the agent as its account with a persona
+
+**Status:** decided (2026-10-14), from the Phase 3 tests (NOTES.md 36–39). It follows from D12.
+
+START runs the agent as the account named by its second parameter, or by the system
+logical `BESZEL$USER`. When that account isn't the caller's, `[BIN]BESZEL_LAUNCH.EXE`:
+- takes on the account's persona (`$PERSONA_CREATE` and `$PERSONA_ASSUME`);
+- creates the detached LOGINOUT process running `BESZEL$RUN.COM` under it;
+- drops the persona.
+
+The launcher needs IMPERSONATE and DETACH, which a system startup has. When the account
+is the caller's, plain `RUN/DETACHED LOGINOUT /AUTHORIZE` is used.
+
+The account:
+- **Login:** no DisUser flag, because personas refuse disusered accounts. Every login
+  class disallowed (local, dial-up, remote, network, batch). `/LGICMD="NL:"`. Flags
+  DISCTLY and LOCKPWD. A long random password nobody needs.
+- **Rights:** a UIC group of its own, above `MAXSYSGROUP`. NETMBX and TMPMBX only.
+- **Files:** it owns `[CONF]`, `[DATA]` and `[LOG]`. `[BIN]` and `[COM]` are world-readable.
+
+Alternatives:
+- **`RUN/DETACHED/UIC`:** gives the creator's username and authorized privileges
+  (NOTES.md 36).
+- **`SUBMIT/USER` to a batch queue:** a real login, but it holds a batch slot for ever,
+  needs batch access, and the kit would have to create a queue.

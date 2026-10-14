@@ -1,13 +1,16 @@
 $! soak_monitor.com - Phase 3 soak test: every 10 minutes for P1 hours, append
 $! the agent's resource use to [.ROOT.LOG]SOAK.CSV.  Growth in working set or
 $! page-file use means a leak; a new PID means the agent restarted.
+$! Writes [.SOAK]SOAK.CSV in the work directory ([.ROOT.LOG] belongs to BESZEL).
 $ set noon
 $ here = f$parse(f$environment("procedure"),,,"device") + f$parse(f$environment("procedure"),,,"directory")
 $ set default 'here'
 $ hours = f$integer(p1)
 $ if hours .le. 0 then hours = 25
 $ rounds = hours * 6
-$ csv = "[.root.log]soak.csv"
+$ x = f$setprv("WORLD")                ! the agent runs as BESZEL: seeing it needs WORLD
+$ if f$search("[]SOAK.DIR") .eqs. "" then create/directory [.soak]
+$ csv = "[.soak]soak.csv"
 $ if f$search(csv) .eqs. ""
 $ then
 $   open/write f 'csv'

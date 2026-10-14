@@ -69,6 +69,7 @@ int bz_agent_on_connected(struct bz_agent *a, uint64_t now)
     a->opened = now;
     a->last_rx = now;
     a->verified = 0;
+    a->bad_messages = 0;
     bz_buf_clear(&a->in);
     bz_buf_clear(&a->out);
     bz_ws_rx_free(&a->rx);
@@ -172,18 +173,13 @@ static int check_fingerprint(struct bz_agent *a, const struct bz_request *r)
     const unsigned char *sig;
     size_t sig_len;
     int need, i, ok = 0;
-    if (!bz_fingerprint_request(r, &sig, &sig_len, &need)) {
-        agent_log(a, BZ_LOG_ERROR, "Error handling message: malformed fingerprint request");
-        return 1;
-    }
+    if (!bz_fingerprint_request(r, &sig, &sig_len, &need))
+        return 0;
     if (sig_len == 64)
         for (i = 0; i < a->cfg.keys.n && !ok; i++)
             ok = bz_ed25519_verify(a->cfg.keys.ed25519[i], a->cfg.token, strlen(a->cfg.token), sig);
-    if (!ok) {
-        /* as upstream: no reply; the hub closes after 5 s */
-        agent_log(a, BZ_LOG_ERROR, "Error handling message: invalid signature - check KEY value");
-        return 1;
-    }
+    if (!ok)
+        return 0;       /* as upstream: no reply; the hub closes after 5 s */
     a->verified = 1;
     agent_log(a, BZ_LOG_INFO, "WebSocket connected host=%s", a->cfg.url.host_header);
     bz_reply_fingerprint(&a->reply, r, a->cfg.fingerprint, need ? a->id.hostname : NULL,
@@ -191,19 +187,30 @@ static int check_fingerprint(struct bz_agent *a, const struct bz_request *r)
     return 1;
 }
 
+/* a message we can't use: logged, and after a few the connection is closed,
+   so a peer can't fill the disk with log lines (review M4) */
+static int bad_message(struct bz_agent *a, int level, const char *what)
+{
+    if (++a->bad_messages > BZ_MAX_BAD_MESSAGES) {
+        agent_log(a, BZ_LOG_WARN, "Closing the connection: %d messages that could not be used",
+                  a->bad_messages);
+        return 0;
+    }
+    agent_log(a, level, "%s", what);
+    return 1;
+}
+
 static int handle_message(struct bz_agent *a, uint64_t now, const unsigned char *p, size_t n)
 {
     struct bz_request r;
-    if (!bz_request_parse(&r, p, n)) {
-        agent_log(a, BZ_LOG_ERROR, "Error parsing message");
-        return 1;
-    }
+    if (!bz_request_parse(&r, p, n))
+        return bad_message(a, BZ_LOG_ERROR, "Error parsing message");
     bz_buf_clear(&a->reply);
     if (r.action == BZ_ACT_CHECK_FINGERPRINT) {
-        check_fingerprint(a, &r);
+        if (!check_fingerprint(a, &r))
+            return bad_message(a, BZ_LOG_ERROR, "Error handling message: invalid signature - check KEY value");
     } else if (!a->verified) {
-        agent_log(a, BZ_LOG_WARN, "Error handling message: hub not verified");
-        return 1;
+        return bad_message(a, BZ_LOG_WARN, "Error handling message: hub not verified");
     } else if (r.action == BZ_ACT_GET_DATA) {
         get_data(a, now, &r);
     } else {
@@ -288,6 +295,12 @@ int bz_agent_tick(struct bz_agent *a, uint64_t now)
     }
     if (a->state == BZ_UPGRADING && now - a->opened > BZ_UPGRADE_TIMEOUT_MS) {
         agent_log(a, BZ_LOG_WARN, "WebSocket connection failed: no upgrade response");
+        return 0;
+    }
+    if (a->state == BZ_OPEN && !a->verified && now - a->opened > BZ_VERIFY_TIMEOUT_MS) {
+        agent_log(a, BZ_LOG_WARN, "Connection closed: the hub did not prove its key within %d s",
+                  BZ_VERIFY_TIMEOUT_MS / 1000);
+        send_close(a, 1000);
         return 0;
     }
     if (a->state == BZ_OPEN && now - a->last_rx > BZ_RX_DEADLINE_MS) {

@@ -410,3 +410,33 @@ proxy logs as secrets.
   - The restart back-off is bounded.
 - **Tests:** `make test` and `make test-asan` passed (221/221), and `make fuzz` ran 300,000
   iterations with no ASan or UBSan fault.
+
+
+---
+
+## Response (2026-10-14)
+
+Every finding was checked against the code before it was acted on. The fixes are tested by
+unit tests (228 checks), fuzzing (6.3 million rounds), the conformance and integration tests
+on Linux, and on both nodes.
+
+| # | Response |
+|---|---|
+| M1 | **Fixed.** The socket stays non-blocking for its whole life. Every read and write waits with `select()` against a deadline: the TLS handshake gets 15 s in all, a send gets 30 s, and a read never blocks (a partial TLS record returns "nothing yet"). So the agent's 120 s deadline, stop file and signals keep working. |
+| M2 | **Fixed** (D12, D14, the user's choice). START refuses system-group UICs and unknown accounts. The agent refuses to run with authorized privileges beyond NETMBX and TMPMBX, or with a system UIC, and the run procedure then stops instead of retrying. Starting it as the account uses a persona launcher, because `RUN/DETACHED/UIC` turned out to keep the creator's privileges (NOTES.md 36–39). |
+| M3 | **Fixed** (D13, the user's choice). A WARN at every start when `HUB_URL` is `http://` and not loopback, and the README says to use https. |
+| M4 | **Fixed.** A connection is closed after 10 messages that can't be used, and identical consecutive log lines are counted, with a summary every 10 minutes. |
+| L1 | **Fixed.** Control characters become `?` in the log writer, on both platforms. |
+| L2 | **Fixed.** The frame parser advances an offset and compacts the buffer once per read. |
+| L3 | **Fixed.** Settings come from the process and system logical-name tables only. The procedures read `BESZEL$ROOT` and `BESZEL$USER` from the system table, then pin `BESZEL$ROOT` in the process table. |
+| L4 | **Fixed.** The process lookup matches the account as well as the name. |
+| L5 | **Partly fixed.** A fingerprint file that exists but is unreadable or damaged now stops the agent with instructions, instead of being replaced. The stop file and the directories are protected by ownership: `[DATA]` belongs to the agent's account, and only its owner and SYSTEM can create files there. |
+| L6 | **Documented.** The README says to set the protection again after `EDIT` and to purge old versions. The kit will create `AGENT.CONF` with the right owner and protection. |
+| I1 | **Not fixable in the agent**: it needs a challenge from the hub. Use TLS. |
+| I2 | **Fixed.** The raw config text and the `TOKEN_FILE` buffer are wiped before they are freed. |
+| I3 | **Fixed.** `HUB_URL` is never echoed in an error message. |
+| I4 | **Fixed.** Control characters in `TOKEN` or `HUB_URL` are refused at start, and the token is limited to 255 characters. |
+| I5 | **Fixed.** An empty `CA_CERT_FILE` is reported as having no certificates. |
+| I6 | **Fixed.** A peer that hasn't proved its key within 60 s is disconnected. |
+| I7 | **Fixed.** A clock set back is absorbed into an offset, so the timers keep running. |
+| I8 | **No change**: the Linux stub is a test platform. |

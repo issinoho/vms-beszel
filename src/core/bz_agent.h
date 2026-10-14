@@ -31,6 +31,8 @@
 #define BZ_MIN_ATTEMPT_MS 5000      /* :365-367 */
 #define BZ_RX_DEADLINE_MS 120000    /* agent/client.go:29-33 */
 #define BZ_UPGRADE_TIMEOUT_MS 30000
+#define BZ_VERIFY_TIMEOUT_MS 60000  /* the hub must prove itself this soon (review I6) */
+#define BZ_MAX_BAD_MESSAGES 10      /* then close: each one costs a log line (review M4) */
 
 struct bz_env {
     void *ctx;
@@ -60,6 +62,7 @@ struct bz_agent {
     struct bz_env env;
     enum bz_conn_state state;
     int verified;
+    int bad_messages;               /* on this connection */
     uint64_t next_attempt, last_attempt, last_rx, opened, next_load;
     char ws_key[25];
     bz_buf in, out, reply, scratch;

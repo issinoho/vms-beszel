@@ -25,13 +25,62 @@
 #include "bz_url.h"
 #include "bz_version.h"
 
+/* "don't restart me": BESZEL$RUN.COM stops instead of retrying (SS$_ABORT on VMS) */
+#define BZ_EXIT_REFUSED 44
+
 static int min_level = BZ_LOG_INFO;
+
+/* Identical consecutive lines are counted, not repeated (review M4): a hub
+   that keeps failing the same way writes a summary every 10 minutes. */
+static char last_msg[512];
+static int last_level;
+static unsigned long repeats;
+static uint64_t repeat_since;
+
+static void flush_repeats(void)
+{
+    char note[96];
+    if (repeats) {
+        snprintf(note, sizeof note, "(the previous message was repeated %lu more times)", repeats);
+        bz_plat_log(last_level, note);
+        repeats = 0;
+    }
+}
 
 static void log_cb(void *ctx, int level, const char *msg)
 {
+    uint64_t now;
     (void)ctx;
-    if (level >= min_level)
-        bz_plat_log(level, msg);
+    if (level < min_level)
+        return;
+    now = bz_plat_now_ms();
+    if (level == last_level && strcmp(msg, last_msg) == 0) {
+        if (!repeats)
+            repeat_since = now;
+        repeats++;
+        if (now - repeat_since >= 600000)
+            flush_repeats();
+        return;
+    }
+    flush_repeats();
+    bz_strlcpy(last_msg, msg, sizeof last_msg);
+    last_level = level;
+    bz_plat_log(level, msg);
+}
+
+/* control characters would let a value forge log lines or HTTP headers (review I4) */
+static int has_ctl(const char *s)
+{
+    for (; *s; s++)
+        if ((unsigned char)*s < 0x20 || *s == 0x7F)
+            return 1;
+    return 0;
+}
+
+static void wipe(bz_buf *b)
+{
+    if (b->p)
+        memset(b->p, 0, b->cap);
 }
 
 static void say(int level, const char *fmt, ...)
@@ -78,15 +127,30 @@ static int load_fingerprint(char out[49], const char *dir, const struct bz_ident
     size_t n;
     bz_plat_data_path(path, sizeof path, dir, "fingerprint");
     bz_buf_init(&b);
-    if (bz_plat_read_file(path, &b)) {
+    if (bz_plat_exists(path)) {
+        /* the fingerprint ties this agent to its system in the hub: never
+           replace a file that is there but unreadable or damaged (review L5) */
+        size_t i;
+        if (!bz_plat_read_file(path, &b)) {
+            say(BZ_LOG_ERROR, "the fingerprint file %s can't be read", path);
+            bz_buf_free(&b);
+            return 0;
+        }
         s = (const char *)b.p;
         n = b.len;
         bz_trim(&s, &n);
-        if (n > 0 && n < 49) {
-            bz_strlcpyn(out, 49, s, n);
+        for (i = 0; i < n; i++)
+            if (!((s[i] >= '0' && s[i] <= '9') || (s[i] >= 'a' && s[i] <= 'f')))
+                break;
+        if (n == 0 || n > 48 || i != n) {
+            say(BZ_LOG_ERROR, "the fingerprint file %s is damaged; restore it, or delete it and "
+                              "reset the system's fingerprint in the hub", path);
             bz_buf_free(&b);
-            return 1;
+            return 0;
         }
+        bz_strlcpyn(out, 49, s, n);
+        bz_buf_free(&b);
+        return 1;
     }
     bz_buf_free(&b);
     make_fingerprint(out, id->fp_seed);
@@ -223,6 +287,11 @@ int main(int argc, char **argv)
         else if (bz_ieq(v, "error")) min_level = BZ_LOG_ERROR;
     }
     say(BZ_LOG_INFO, "beszel agent for OpenVMS %s (protocol %s)", BZ_PORT_VERSION, BZ_PROTOCOL_VERSION);
+    if (!bz_plat_check_account(err, sizeof err)) {
+        say(BZ_LOG_ERROR, "%s", err);         /* D12: no privileges, no system account */
+        rc = BZ_EXIT_REFUSED;
+        goto out;
+    }
 
     memset(&cfg, 0, sizeof cfg);
     v = nonempty(bz_conf_get(&conf, "HUB_URL"));
@@ -230,10 +299,15 @@ int main(int argc, char **argv)
         say(BZ_LOG_ERROR, "HUB_URL is not set (only the WebSocket connection is supported)");
         goto out;
     }
-    if (!bz_url_parse(&cfg.url, v, err, sizeof err)) {
-        say(BZ_LOG_ERROR, "invalid HUB_URL %s: %s", v, err);
+    if (has_ctl(v) || !bz_url_parse(&cfg.url, v, err, sizeof err)) {
+        /* not echoed: a URL can hold user:password@ (review I3) */
+        say(BZ_LOG_ERROR, "invalid HUB_URL: %s", has_ctl(v) ? "it contains control characters" : err);
         goto out;
     }
+    if (!cfg.url.tls && strcmp(cfg.url.host, "127.0.0.1") != 0 && strcmp(cfg.url.host, "::1") != 0 &&
+        !bz_ieq(cfg.url.host, "localhost"))
+        say(BZ_LOG_WARN, "HUB_URL is http://: the token crosses the network in clear text, and "
+                         "anyone on the path could use it to pose as this system; use https:// (D13)");
 
     /* agent/client.go getToken: TOKEN, else the single line of TOKEN_FILE */
     if ((v = nonempty(bz_conf_get(&conf, "TOKEN"))) != NULL) {
@@ -244,13 +318,19 @@ int main(int argc, char **argv)
         if (!bz_plat_read_file(v, &b) ||
             !bz_conf_token_file((const char *)b.p, b.len, &token)) {
             say(BZ_LOG_ERROR, "TOKEN_FILE %s: unreadable, or more than one token", v);
+            wipe(&b);
             bz_buf_free(&b);
             goto out;
         }
+        wipe(&b);
         bz_buf_free(&b);
     }
     if (!token.len) {
         say(BZ_LOG_ERROR, "must set TOKEN or TOKEN_FILE");
+        goto out;
+    }
+    if (has_ctl((const char *)token.p) || token.len > 255) {
+        say(BZ_LOG_ERROR, "TOKEN must be one line of printable characters");
         goto out;
     }
     token_s = (char *)token.p;
@@ -278,7 +358,7 @@ int main(int argc, char **argv)
         bz_buf b;
         static char ca_copy[1024];
         bz_buf_init(&b);
-        if (!bz_plat_read_file(v, &b) || !strstr((const char *)b.p, "-----BEGIN CERTIFICATE-----")) {
+        if (!bz_plat_read_file(v, &b) || !b.len || !strstr((const char *)b.p, "-----BEGIN CERTIFICATE-----")) {
             say(BZ_LOG_ERROR, "CA_CERT_FILE %s does not contain any valid PEM certificates", v);
             bz_buf_free(&b);
             goto out;
@@ -326,7 +406,8 @@ int main(int argc, char **argv)
             bz_strlcpy(dd, data_dir ? data_dir : bz_plat_default_data_dir(), sizeof dd);
             data_dir = dd;
         }
-        load_fingerprint(cfg.fingerprint, data_dir, &id);
+        if (!load_fingerprint(cfg.fingerprint, data_dir, &id))
+            goto out;
         say(BZ_LOG_INFO, "Data directory path=%s", data_dir);
         bz_plat_data_path(stop_file, sizeof stop_file, data_dir, "stop");
         if (bz_plat_exists(stop_file)) {
@@ -448,7 +529,9 @@ out:
     if (token.p)
         memset(token.p, 0, token.cap);
     bz_buf_free(&token);
+    flush_repeats();
     bz_buf_free(&keytext);
+    wipe(&file);
     bz_buf_free(&file);
     bz_conf_free(&conf);
     return rc;
