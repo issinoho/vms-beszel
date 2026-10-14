@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="docs/images/banner.svg" alt="beszel agent for OpenVMS: a DECterm window starting the agent as its own account and showing what it reports, beside a chart mark" width="100%">
+</p>
+
 # Beszel agent for OpenVMS
 
 ![OpenVMS](https://img.shields.io/badge/OpenVMS-IA64%20%7C%20x86--64-blue)
@@ -248,6 +252,13 @@ too:
 - `tests/integration/itest.py` runs the agent against beszel's own hub.
 
 `docs/` holds the plan, the protocol notes and every design decision.
+
+## Artwork
+
+`docs/images/banner.svg` and `docs/images/icon.svg` were made for this project in the style of
+classic DECwindows and VT terminals, like those of its sibling ports. The chart mark is our own
+drawing, not beszel's logo. The terminal shows real output from the x86 test node, with the
+hub's address replaced.
 
 ## Licence
 
