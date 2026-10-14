@@ -189,3 +189,24 @@ unpacked in `cache/toolchain/`, verified against go.dev's SHA-256.
 Captures of the upstream agent hold the workstation's real data (sensors, services, SSID),
 so they stay in `out/` and are **never committed**. Committed fixtures are produced by our
 stub platform with synthetic data, and checked against upstream's structs (D6).
+
+## D11. Small, deliberate departures from upstream's agent
+
+**Status:** proposed (2026-10-14), for review at the Phase 1 exit.
+
+Each one changes only what happens with input upstream accepts by accident:
+
+1. **`HUB_URL` must be `http://` or `https://`.** Upstream turns `https` into `wss` and
+   every other scheme into plain `ws` (`agent/client.go:174-178`), so `HUB_URL=wss://hub`
+   connects **without TLS** while looking secure. We refuse other schemes at startup with
+   a message.
+2. **`NICS` matches case-insensitively.** OpenVMS device names are case-insensitive (`EWA0`,
+   `ewa0` and `_EWA0:` name one device). Upstream's `path.Match` is case-sensitive.
+3. **NIC selection is decided on every sample**, not once at startup as upstream does. An
+   interface that only gets traffic after the agent starts (a LAN failover, say) is then
+   picked up without a restart. The rule itself is upstream's: skip names starting with
+   `lo`, `docker` and so on, and NICs with no bytes in either direction.
+
+Alternative: copy upstream exactly. Rejected for (1) because it is a silent security
+downgrade. For (2) and (3) the difference is invisible on Linux-style names and only helps
+on VMS.
