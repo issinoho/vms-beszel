@@ -3,6 +3,11 @@
  *   beszel_agent [<config-file>]
  *   beszel_agent --sample [secs] [disk...]    print what would be reported, no hub
  *
+ * Stops on SIGINT/SIGTERM, or when a file named "stop" appears in DATA_DIR
+ * (BESZEL$ROOT:[DATA]STOP. on OpenVMS): BESZEL$STARTUP.COM STOP creates it, and
+ * BESZEL$RUN.COM then doesn't restart the agent.  A stop file left from before
+ * is removed at start.
+ *
  * Portable over bz_platform.h.  Settings follow upstream 0.21.0's names and
  * rules (PROTOCOL.md 7, DECISIONS.md D5).
  */
@@ -183,6 +188,8 @@ int main(int argc, char **argv)
     const char *path = argc > 1 ? argv[1] : bz_plat_default_config();
     const char *v, *ca_file = NULL, *data_dir;
     char err[256], port[16];
+    static char stop_file[1100];
+    uint64_t next_stop_check = 0;
     char *token_s;
     bz_sock *sock = NULL;
     int exit_on_dns = 0, rc = EXIT_FAILURE;
@@ -321,6 +328,11 @@ int main(int argc, char **argv)
         }
         load_fingerprint(cfg.fingerprint, data_dir, &id);
         say(BZ_LOG_INFO, "Data directory path=%s", data_dir);
+        bz_plat_data_path(stop_file, sizeof stop_file, data_dir, "stop");
+        if (bz_plat_exists(stop_file)) {
+            say(BZ_LOG_INFO, "removing an old stop request %s", stop_file);
+            bz_plat_remove(stop_file);
+        }
 
         {
             static char sysname[128];
@@ -345,7 +357,15 @@ int main(int argc, char **argv)
 
     while (!bz_plat_stop_requested()) {
         uint64_t now = bz_plat_now_ms();
-        int keep = bz_agent_tick(&agent, now);
+        int keep;
+        if (now >= next_stop_check) {
+            next_stop_check = now + 2000;
+            if (bz_plat_exists(stop_file)) {
+                say(BZ_LOG_INFO, "stop requested (%s)", stop_file);
+                break;
+            }
+        }
+        keep = bz_agent_tick(&agent, now);
 
         if (!sock && bz_agent_should_connect(&agent, now)) {
             say(BZ_LOG_DEBUG, "connecting to %s", cfg.url.host_header);

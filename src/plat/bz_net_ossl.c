@@ -144,9 +144,17 @@ static int tls_start(bz_sock *s, const char *host, const char *ca_file, unsigned
     setsockopt(s->fd, SOL_SOCKET, SO_RCVTIMEO, (char *)&tv, sizeof tv);
     if (SSL_connect(s->ssl) != 1) {
         long v = SSL_get_verify_result(s->ssl);
-        if (v != X509_V_OK)
-            snprintf(err, errlen, "TLS: certificate not trusted: %s (set CA_CERT_FILE?)",
+        if (v == X509_V_ERR_HOSTNAME_MISMATCH || v == X509_V_ERR_IP_ADDRESS_MISMATCH)
+            snprintf(err, errlen, "TLS: the hub's certificate is not for %s (%s)", host,
                      X509_verify_cert_error_string(v));
+        else if (v == X509_V_ERR_UNABLE_TO_GET_ISSUER_CERT_LOCALLY ||
+                 v == X509_V_ERR_UNABLE_TO_GET_ISSUER_CERT ||
+                 v == X509_V_ERR_DEPTH_ZERO_SELF_SIGNED_CERT ||
+                 v == X509_V_ERR_SELF_SIGNED_CERT_IN_CHAIN)
+            snprintf(err, errlen, "TLS: certificate not trusted: %s (set CA_CERT_FILE to the CA "
+                     "that issued the hub's certificate)", X509_verify_cert_error_string(v));
+        else if (v != X509_V_OK)
+            snprintf(err, errlen, "TLS: certificate not trusted: %s", X509_verify_cert_error_string(v));
         else
             ossl_err(err, errlen, "TLS handshake");
         return 0;

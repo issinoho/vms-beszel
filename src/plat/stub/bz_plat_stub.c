@@ -85,6 +85,17 @@ int bz_plat_write_file(const char *path, const void *p, size_t n)
     return 1;
 }
 
+int bz_plat_exists(const char *path)
+{
+    struct stat st;
+    return stat(path, &st) == 0;
+}
+
+int bz_plat_remove(const char *path)
+{
+    return remove(path) == 0;
+}
+
 int bz_plat_file_exposed(const char *path)
 {
     struct stat st;

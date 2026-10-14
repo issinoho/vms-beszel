@@ -24,6 +24,8 @@ void bz_plat_sleep_ms(unsigned ms);
 int bz_plat_read_file(const char *path, bz_buf *out);
 /* atomically replace a small file, readable by the owner only */
 int bz_plat_write_file(const char *path, const void *p, size_t n);
+int bz_plat_exists(const char *path);
+int bz_plat_remove(const char *path);
 /* 1 if group or world can read it (the config holds the token) */
 int bz_plat_file_exposed(const char *path);
 /* "<dir>/<name>" in the platform's syntax */

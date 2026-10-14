@@ -143,6 +143,13 @@ OpenVMS V8.4-2L3 on an rx2660 (1 active CPU, VSI C 7.4-001).
     The `%SET-W-NOTSET ... DKA800:` line in every IA64 batch log comes from that node's
     login procedure, before any of our commands run.
 
+32. **Another process reading the agent's log can lag behind it.** TYPE showed nothing after
+    21:11:56 while the agent had already logged its reconnect at 21:12:07; a second TYPE a
+    few seconds later showed it. The agent calls `fflush` after every line; RMS then shows
+    other readers the new records a little later. Not a problem for operators, but a test
+    script that reads the log must allow a few seconds.
+33. **CRTL `strerror()` text can end in spaces** ("connection refused  ").
+
 ## Linux workstation
 
 21. **`pkill -f <pattern>` matches the shell running it** and killed the tool's own command
