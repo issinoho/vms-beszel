@@ -1,6 +1,7 @@
 # Phase 1: the agent core on Linux (report)
 
-**Status:** done (2026-10-14), awaiting the user's exit review.
+**Status:** done (2026-10-14). Exit review: approved by the user on 2026-10-14, including the
+D9 correction (flat disk I/O line accepted for v1) and D11.
 
 **Verdict:** the exit criterion is met. Our agent, built from the portable core on a Linux
 stub platform, is accepted by upstream's own 0.21.0 hub binary. The system comes up with

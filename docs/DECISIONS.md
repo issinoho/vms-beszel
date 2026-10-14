@@ -162,7 +162,7 @@ No field is filled with a guess to make a chart look populated. Units are upstre
 | Swap, SwapUsed | the page files plus the swap files, from `SYI$_PAGEFILE_*` and `SYI$_SWAPFILE_*` | used = page − free. The chart shows only when used > 0 (PROTOCOL.md 4.8). |
 | DiskTotal, DiskUsed, DiskPct (root) | `$GETDVI` MAXBLOCK, FREEBLOCKS on `SYS$SYSDEVICE` (or `FILESYSTEM`) | 512-byte blocks; pct = used / total (no root reserve on ODS-5, so gopsutil's used/(used+avail) is the same) |
 | ExtraFs | the same, for each disk in `EXTRA_FILESYSTEMS` | Upstream's syntax, with VMS device names (`DKA200:__tools`). |
-| **Disk I/O** (`dio`, `dr`, `dw`, `diot`, `dios`) | `DVI$_OPCNT`: operation counts only | **Not sent.** There is no byte counter (NOTES.md 9), and operations × a guessed size would be invented data. *Correction (2026-10-14):* the UI does not hide the root disk I/O chart (PROTOCOL.md 4.8), so it shows a flat zero line; the "more I/O" sheet stays hidden. To be raised at the Phase 1 exit. Revisit if Phase 2 finds per-volume XFC byte statistics. |
+| **Disk I/O** (`dio`, `dr`, `dw`, `diot`, `dios`) | `DVI$_OPCNT`: operation counts only | **Not sent.** There is no byte counter (NOTES.md 9), and operations × a guessed size would be invented data. *Correction (2026-10-14):* the UI does not hide the root disk I/O chart (PROTOCOL.md 4.8), so it shows a flat zero line; the "more I/O" sheet stays hidden. Accepted for v1 by the user at the Phase 1 exit. Revisit if Phase 2 finds per-volume XFC byte statistics. |
 | Bandwidth, `ni` | LAN device counters (`$QIO` read-counters, unit 0) | B/s from deltas; per NIC as upstream. Devices with no traffic are skipped unless named in `NICS`. **Open:** 32-bit counters that may latch (NOTES.md 13); Phase 2 checks, and finds LANCP's wider interface if needed. |
 | Uptime | `SYI$_BOOTTIME` and the current time | seconds |
 | Details.Hostname | TCP/IP host name (`gethostname`), else `SYI$_NODENAME` | |
@@ -192,7 +192,7 @@ stub platform with synthetic data, and checked against upstream's structs (D6).
 
 ## D11. Small, deliberate departures from upstream's agent
 
-**Status:** proposed (2026-10-14), for review at the Phase 1 exit.
+**Status:** approved by the user at the Phase 1 exit (2026-10-14).
 
 Each one changes only what happens with input upstream accepts by accident:
 
