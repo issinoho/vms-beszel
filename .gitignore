@@ -4,3 +4,4 @@ out/
 build/
 tools/nodes.conf
 tools/hub.conf
+beszel-data/
