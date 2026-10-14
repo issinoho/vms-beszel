@@ -150,6 +150,17 @@ OpenVMS V8.4-2L3 on an rx2660 (1 active CPU, VSI C 7.4-001).
     script that reads the log must allow a few seconds.
 33. **CRTL `strerror()` text can end in spaces** ("connection refused  ").
 
+34. **The first TLS connection cost about 7 s of CPU on the x86 node** (1 s on IA64). After
+    that, CPU stayed flat: two minutes later x86 was still at 7 s. Most of the cost is loading
+    and verifying against the CA bundle (about 140 certificates, curl.se 2026-09-25). The TLS
+    context is now built once per process instead of once per connection, so a reconnect
+    doesn't pay it again. Checked on Linux under ASan, with a proxy reset forcing a TLS
+    reconnect.
+35. **Your hub (2026-10-14):** `https://<hub-host>`, 0.21.0 behind openresty
+    (Nginx Proxy Manager) with a Let's Encrypt certificate. It resolves to the public
+    address, and the nodes reach it through the router's hairpin NAT. Both nodes connected
+    at 21:41 using the kit's CA bundle, and the user saw both systems up.
+
 ## Linux workstation
 
 21. **`pkill -f <pattern>` matches the shell running it** and killed the tool's own command

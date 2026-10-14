@@ -26,12 +26,18 @@
 #include <openssl/x509v3.h>
 
 #include "bz_platform.h"
+#include "bz_text.h"
 
 struct bz_sock {
     int fd;
-    SSL_CTX *ctx;
     SSL *ssl;
 };
+
+/* One TLS context for the life of the process: loading the CA bundle took
+   about 7 s of CPU on the x86 node (NOTES.md 34), and it would otherwise be
+   repeated on every reconnect.  Verification still happens per connection. */
+static SSL_CTX *tls_ctx;
+static char tls_ctx_ca[1024];
 
 static void ossl_err(char *err, size_t errlen, const char *what)
 {
@@ -96,32 +102,52 @@ static int is_ip_literal(const char *host)
     return inet_pton(AF_INET, host, a) == 1 || inet_pton(AF_INET6, host, a) == 1;
 }
 
+static SSL_CTX *tls_context(const char *ca_file, char *err, size_t errlen)
+{
+    const char *bundle = bz_plat_default_ca_file();
+    SSL_CTX *ctx;
+    if (!ca_file)
+        ca_file = "";
+    if (tls_ctx && strcmp(tls_ctx_ca, ca_file) == 0)
+        return tls_ctx;
+    ctx = SSL_CTX_new(TLS_client_method());
+    if (!ctx) {
+        ossl_err(err, errlen, "TLS context");
+        return NULL;
+    }
+    SSL_CTX_set_min_proto_version(ctx, TLS1_2_VERSION);
+    SSL_CTX_set_verify(ctx, SSL_VERIFY_PEER, NULL);
+    if (bundle) {
+        if (SSL_CTX_load_verify_locations(ctx, bundle, NULL) != 1) {
+            ossl_err(err, errlen, "loading the CA bundle");
+            SSL_CTX_free(ctx);
+            return NULL;
+        }
+    } else if (SSL_CTX_set_default_verify_paths(ctx) != 1) {
+        ossl_err(err, errlen, "loading the system CA store");
+        SSL_CTX_free(ctx);
+        return NULL;
+    }
+    if (*ca_file && SSL_CTX_load_verify_locations(ctx, ca_file, NULL) != 1) {
+        ossl_err(err, errlen, "loading CA_CERT_FILE");
+        SSL_CTX_free(ctx);
+        return NULL;
+    }
+    if (tls_ctx)
+        SSL_CTX_free(tls_ctx);
+    tls_ctx = ctx;
+    bz_strlcpy(tls_ctx_ca, ca_file, sizeof tls_ctx_ca);
+    return ctx;
+}
+
 static int tls_start(bz_sock *s, const char *host, const char *ca_file, unsigned timeout_ms,
                      char *err, size_t errlen)
 {
-    const char *bundle = bz_plat_default_ca_file();
     struct timeval tv;
-    s->ctx = SSL_CTX_new(TLS_client_method());
-    if (!s->ctx) {
-        ossl_err(err, errlen, "TLS context");
+    SSL_CTX *ctx = tls_context(ca_file, err, errlen);
+    if (!ctx)
         return 0;
-    }
-    SSL_CTX_set_min_proto_version(s->ctx, TLS1_2_VERSION);
-    SSL_CTX_set_verify(s->ctx, SSL_VERIFY_PEER, NULL);
-    if (bundle) {
-        if (SSL_CTX_load_verify_locations(s->ctx, bundle, NULL) != 1) {
-            ossl_err(err, errlen, "loading the CA bundle");
-            return 0;
-        }
-    } else if (SSL_CTX_set_default_verify_paths(s->ctx) != 1) {
-        ossl_err(err, errlen, "loading the system CA store");
-        return 0;
-    }
-    if (ca_file && *ca_file && SSL_CTX_load_verify_locations(s->ctx, ca_file, NULL) != 1) {
-        ossl_err(err, errlen, "loading CA_CERT_FILE");
-        return 0;
-    }
-    s->ssl = SSL_new(s->ctx);
+    s->ssl = SSL_new(ctx);
     if (!s->ssl) {
         ossl_err(err, errlen, "TLS session");
         return 0;
@@ -274,8 +300,6 @@ void bz_net_close(bz_sock *s)
         SSL_shutdown(s->ssl);
         SSL_free(s->ssl);
     }
-    if (s->ctx)
-        SSL_CTX_free(s->ctx);
     if (s->fd >= 0)
         close(s->fd);
     free(s);

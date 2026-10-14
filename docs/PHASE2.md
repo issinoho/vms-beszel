@@ -1,7 +1,8 @@
 # Phase 2: the OpenVMS platform layer (report)
 
 **Status:** in progress (2026-10-14). The platform layer is done and verified on both nodes.
-Two exit items are open:
+Exit item 2 is done: both nodes have reported to the user's hub (https, behind a reverse
+proxy) since 21:41 on 2026-10-14, and the user saw both systems up. Exit item 1 is still open:
 1. **The LAN counter crossing 2^32** on IA64 (EWB0, about 15:00 on 2026-10-15): do the
    counters wrap, which the agent already handles, or stick at the maximum?
 2. **Both nodes in the user's LAN hub.** This needs the user to add the systems, or to give
