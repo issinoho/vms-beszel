@@ -98,6 +98,32 @@ OpenVMS V8.4-2L3 on an rx2660 (1 active CPU, VSI C 7.4-001).
     All of it works without privilege. SSL3 ships no CA store we have loaded, so verifying
     the hub's certificate needs `CA_CERT_FILE` or a bundle we choose (D5).
 
+## Phase 2
+
+23. **`$GETRMI` writes more than the 16-bit return length an item list provides, at least
+    for `RMI$_MODES`.** With an `unsigned short` return-length variable, the agent's sample
+    function crashed with an access violation at address 0x38: the caller's pointer had been
+    overwritten on the stack. With 8 bytes of room it is fine on both nodes. This also
+    explains the "wrong" return lengths in Phase 0 (item 5). Every return-length field we
+    give a system service now has 8 bytes.
+24. **The XFC size can't be read through any public interface.** `RMI$_CACHE_MEMORY` and
+    `CACHE_FREE` return 0 even with `CACHE_STATE` in the same call and with all privileges.
+    `RMI$_CACHE_EVERYTHING` is refused (BADPARAM) at every length from 4 to 16000.
+    `$GETSYI` has no XFC size. SHOW MEMORY/CACHE knows it (190 MB on x86). D9: buff/cache
+    is 0, and XFC memory counts as "used".
+25. **CRTL `usleep()` returns at once for a second or more**, as POSIX allows. A 10 s
+    `usleep` made two samples identical (every rate 0). Use `sleep()` for whole seconds.
+26. **VSI C under `/STANDARD=C99` hides `SIGPIPE` and `localtime_r`.** Guard the first; the
+    agent is single-threaded, so `localtime` serves for the second.
+27. **DCL lowercases a foreign command's arguments** (`DKA200:` arrives as `dka200:`).
+    `$GETDVI` doesn't care. Names typed in the config file keep their case.
+28. **Cross-checks (`probes/check_metrics.com`):** the agent unprivileged, against MONITOR
+    MODES over the same 10 s and SHOW MEMORY/DEVICE right after.
+    - x86: busy 31.45% vs MONITOR 34.2%, with about a second's offset between the windows;
+      user + super 5.34 vs 5.39; memory, swap, disks and uptime the same.
+    - IA64: busy 21.88% vs 21.7%; user + super 8.69 vs 8.70; kernel + exec + interrupt
+      13.19 vs 12.88; memory in use 2.32 vs 2.31 GB.
+
 ## Linux workstation
 
 21. **`pkill -f <pattern>` matches the shell running it** and killed the tool's own command

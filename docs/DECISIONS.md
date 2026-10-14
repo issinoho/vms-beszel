@@ -158,7 +158,7 @@ No field is filled with a guess to make a chart look populated. Units are upstre
 | `cpub` [user, system, iowait, steal, idle] | the same | user = user + super; system = kernel + exec + MP synch + interrupt (`[0]−[7]`, clamped at 0) + compat; **iowait = 0**, **steal = 0** (VMS doesn't measure them); idle. "Other" is then 0. |
 | LoadAvg [1, 5, 15] | `RMI$_CUR + RMI$_COM + RMI$_COMO`, sampled every 5 s | Linux's exponential damping (constants 1884/2014/2037 over 2048, as `calc_load`). **Derived**, and documented as such. It starts at 0 at agent start, as Linux does at boot. |
 | Mem, MemUsed, MemPct | `SYI$_MEMSIZE` × `SYI$_PAGE_SIZE`; free = `RMI$_FRLIST`; used = total − free − `RMI$_MODLIST` | The modified list is reclaimable cache, like Linux's dirty page cache. |
-| MemBuffCache | XFC allocated size | **Open:** `RMI$_CACHE_MEMORY` returns 0. Phase 2 looks for the XFC interface; until then send 0 (the field is required, and 0 is valid). |
+| MemBuffCache | XFC allocated size | **Closed (Phase 2):** no public interface reports it (NOTES.md 24). Send 0, and XFC memory counts as used. |
 | Swap, SwapUsed | the page files plus the swap files, from `SYI$_PAGEFILE_*` and `SYI$_SWAPFILE_*` | used = page − free. The chart shows only when used > 0 (PROTOCOL.md 4.8). |
 | DiskTotal, DiskUsed, DiskPct (root) | `$GETDVI` MAXBLOCK, FREEBLOCKS on `SYS$SYSDEVICE` (or `FILESYSTEM`) | 512-byte blocks; pct = used / total (no root reserve on ODS-5, so gopsutil's used/(used+avail) is the same) |
 | ExtraFs | the same, for each disk in `EXTRA_FILESYSTEMS` | Upstream's syntax, with VMS device names (`DKA200:__tools`). |

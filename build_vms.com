@@ -2,8 +2,8 @@ $! build_vms.com - build vms-beszel with VSI C (DECISIONS.md D2).
 $!
 $!   @build_vms [TEST]
 $!
-$! Phase 1: the portable core, the OpenSSL crypto and the unit tests; TEST runs
-$! them.  (The VMS platform layer and the agent image come in Phase 2.)
+$! Builds [.BUILD]BESZEL_AGENT.EXE (the core, the OpenSSL network and crypto
+$! code, the VMS platform layer) and [.BUILD]TEST_CORE.EXE; TEST runs the tests.
 $! Compile qualifiers follow vms-steward/vmsguard: C99, 32-bit pointers,
 $! PREFIX=ALL_ENTRIES so the socket calls link, BSD 4.4 sockaddr.
 $ set noon
@@ -30,6 +30,7 @@ $ failed = 0
 $ sources = "[.src.core]bz_buf,[.src.core]bz_cbor,[.src.core]bz_text,[.src.core]bz_conf," + -
             "[.src.core]bz_key,[.src.core]bz_url,[.src.core]bz_ws,[.src.core]bz_proto," + -
             "[.src.core]bz_stats,[.src.core]bz_agent,[.src.plat]bz_crypto_ossl," + -
+            "[.src.plat]bz_net_ossl,[.src.plat.vms]bz_plat_vms,[.src.main]bz_main," + -
             "[.tests.unit]test_core"
 $ i = 0
 $cc_loop:
@@ -37,7 +38,10 @@ $ s = f$element(i, ",", sources)
 $ if s .eqs. "," then goto cc_done
 $ i = i + 1
 $ name = f$parse(s,,,"NAME","SYNTAX_ONLY")
-$ cc'ccq' 's'.c /object=[.build]'name'.obj
+$! The VMS platform reads the LAN counter layout (NMADEF) from SYS$LIB_C.TLB.
+$ lib = ""
+$ if f$edit(name, "UPCASE") .eqs. "BZ_PLAT_VMS" then lib = "+SYS$LIBRARY:SYS$LIB_C/LIBRARY"
+$ cc'ccq' 's'.c'lib' /object=[.build]'name'.obj
 $ sev = $severity
 $ if sev .ne. 1 .and. sev .ne. 3
 $ then
@@ -59,6 +63,12 @@ $ link/executable=[.build]test_core.exe 'core',[.build]test_core,[.build]ssl.opt
 $ if $severity .ne. 1
 $ then
 $   say "BUILD-FAIL: link test_core"
+$   exit 44
+$ endif
+$ link/executable=[.build]beszel_agent.exe 'core',[.build]bz_net_ossl,[.build]bz_plat_vms,[.build]bz_main,[.build]ssl.opt/options
+$ if $severity .ne. 1
+$ then
+$   say "BUILD-FAIL: link beszel_agent"
 $   exit 44
 $ endif
 $ say "BUILD-OK"

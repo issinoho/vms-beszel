@@ -1,6 +1,7 @@
 /* bz_main.c - the beszel agent for OpenVMS: settings, fingerprint, main loop.
  *
  *   beszel_agent [<config-file>]
+ *   beszel_agent --sample [secs] [disk...]    print what would be reported, no hub
  *
  * Portable over bz_platform.h.  Settings follow upstream 0.21.0's names and
  * rules (PROTOCOL.md 7, DECISIONS.md D5).
@@ -100,6 +101,72 @@ static const char *user_agent(void)
            "Chrome/124.0.0.0 Safari/537.36";
 }
 
+static void fs_print(const char *dev)
+{
+    struct bz_fs_usage u;
+    bz_plat_fs_usage(dev, &u);
+    if (u.ok)
+        printf("  disk %-20s total %.2f GiB  used %.2f GiB (%.2f%%)\n", dev,
+               (double)u.total / 1073741824.0, (double)u.used / 1073741824.0,
+               u.total ? (double)u.used / (double)u.total * 100 : 0.0);
+    else
+        printf("  disk %-20s not mounted or not found\n", dev);
+}
+
+/* --sample [secs] [disk...]: what the agent would report, without a hub */
+static int sample_mode(int argc, char **argv)
+{
+    static struct bz_stats st;
+    static struct bz_sample s;
+    static struct bz_stats_out o;
+    struct bz_identity id;
+    int secs = argc > 2 ? atoi(argv[2]) : 5, i;
+    uint64_t t0;
+    if (secs < 1)
+        secs = 1;
+    if (!bz_plat_init())
+        return EXIT_FAILURE;
+    bz_plat_identity(&id);
+    printf("hostname   %s\nos         %s\nkernel     %s\ncpu model  %s\narch       %s\n"
+           "cpus       %d\nmemory     %llu bytes\nfp seed    %s\n",
+           id.hostname, id.os_name, id.kernel, id.cpu_model, id.arch, id.cores,
+           (unsigned long long)id.mem_total, id.fp_seed);
+    bz_stats_init(&st);
+    bz_fs_spec_parse(&st.cfg.root, bz_plat_default_root_fs(), strlen(bz_plat_default_root_fs()));
+    if (!bz_plat_sample(&s))
+        printf("first sample failed\n");
+    bz_stats_seed(&st, &s);
+    t0 = bz_plat_now_ms();
+    bz_stats_compute(&st, 60000, t0, &s, fs_cb, NULL, &o);     /* network baseline */
+    printf("sampling for %d s...\n", secs);
+    bz_plat_sleep_ms((unsigned)secs * 1000);
+    if (!bz_plat_sample(&s))
+        printf("second sample failed\n");
+    bz_stats_compute(&st, 60000, bz_plat_now_ms(), &s, fs_cb, NULL, &o);
+    printf("cpu        %.2f%%  user %.2f  system %.2f  iowait %.2f  steal %.2f  idle %.2f\n",
+           o.cpu, o.cpub[0], o.cpub[1], o.cpub[2], o.cpub[3], o.cpub[4]);
+    printf("per cpu   ");
+    for (i = 0; i < o.ncores; i++)
+        printf(" %u%%", o.cores[i]);
+    printf("\nrun queue  %.0f (CUR+COM+COMO now)\n", bz_plat_runq());
+    printf("memory     %.2f GiB, used %.2f GiB (%.2f%%), buff/cache %.2f GiB\n",
+           o.mem, o.mem_used, o.mem_pct, o.mem_bc);
+    printf("swap       %.2f GiB, used %.2f GiB\n", o.swap, o.swap_used);
+    printf("uptime     %llu s\n", (unsigned long long)o.uptime);
+    for (i = 0; i < o.nni; i++)
+        printf("  nic %-8s up %llu B/s  down %llu B/s  total sent %llu  received %llu\n", o.ni[i].name,
+               (unsigned long long)o.ni[i].v[0], (unsigned long long)o.ni[i].v[1],
+               (unsigned long long)o.ni[i].v[2], (unsigned long long)o.ni[i].v[3]);
+    for (i = 0; i < s.nnic; i++)
+        if (!bz_nic_selected(&st.cfg, s.nic[i].name, s.nic[i].tx, s.nic[i].rx))
+            printf("  nic %-8s skipped (no traffic, or NICS)\n", s.nic[i].name);
+    fs_print(bz_plat_default_root_fs());
+    for (i = 3; i < argc; i++)
+        fs_print(argv[i]);
+    bz_stats_free(&st);
+    return EXIT_SUCCESS;
+}
+
 static const char *nonempty(const char *s)
 {
     return s && *s ? s : NULL;
@@ -121,6 +188,8 @@ int main(int argc, char **argv)
     int exit_on_dns = 0, rc = EXIT_FAILURE;
     static unsigned char rbuf[16384];
 
+    if (argc > 1 && strcmp(argv[1], "--sample") == 0)
+        return sample_mode(argc, argv);
     if (!bz_plat_init())
         return EXIT_FAILURE;
     bz_conf_init(&conf, bz_plat_conf_override, NULL);
