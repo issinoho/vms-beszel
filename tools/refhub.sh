@@ -5,6 +5,8 @@
 #   refhub.sh init <name>     first user, then a system <name> with a token, as the
 #                             UI's "add system" does; prints KEY= and TOKEN= lines
 #   refhub.sh api <path>      GET an authenticated hub API path (JSON)
+#   refhub.sh post|patch <path> <json>   write through the API as the test user
+#   refhub.sh token           print an auth token for the test user
 #   refhub.sh stop
 #
 # Everything lives under out/refhub; the hub binary is cache/ref (tools/fetch.sh --ref).
@@ -45,6 +47,14 @@ init)
     echo "SYSTEM_ID=$sys"; echo "KEY='$key'"; echo "TOKEN=$token" ;;
 api)
     curl -sf "$base${2:?path}" -H "Authorization: $(auth)" ;;
+post|patch)
+    m=POST; [ "$1" = patch ] && m=PATCH
+    curl -sf -X "$m" "$base${2:?path}" -H "Authorization: $(auth)" -H 'Content-Type: application/json' -d "${3:?json}" ;;
+token)
+    auth ;;
+uid)
+    curl -sf "$base/api/collections/users/records" -H "Authorization: $(auth)" |
+        python3 -I -c 'import json,sys; print(json.load(sys.stdin)["items"][0]["id"])' ;;
 stop)
     [ -f "$dir/hub.pid" ] && kill "$(cat "$dir/hub.pid")" 2>/dev/null; rm -f "$dir/hub.pid"; echo stopped ;;
 *) sed -n '2,10p' "$0" >&2; exit 2 ;;
