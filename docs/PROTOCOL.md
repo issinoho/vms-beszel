@@ -996,13 +996,12 @@ Each question says what would settle it.
   `ssh-ed25519` line.
 - **Q3. blang/semver strictness** for `X-Beszel`. *Settle:* blang v3.5.1 `semver.go`, or a test
   against the integration hub with `v0.21.0` and `0.21`.
-- **Q4. fxamacker decoder conversions.** Does it accept an integer into float64, an array into
-  `[]uint8`, a short array into `[N]T`? Does it reject invalid UTF-8 by default?
-  *Settle:* conformance tests in `tests/conformance/` with deliberately wrong encodings.
-- **Q5. Text keys for ZfsData.** Does fxamacker use the `json` tag when there is no `cbor` tag
-  (so `"complete"`), or the Go field name (`"Complete"`)? Does decoding match keys
-  case-insensitively? *Settle:* capture the upstream agent's GetZfsData reply in the golden
-  session, or run a Go test with `cbor.Marshal(zfs.ZfsData{Complete:true})`.
+- **Q4. fxamacker decoder conversions.** **Moot (Phase 1):** the conformance tests show we
+  send exactly the bytes upstream's encoder produces for the same values, so the hub's
+  decoder never has to convert anything (`tests/conformance`).
+- **Q5. Text keys for ZfsData.** **Settled (Phase 1):** fxamacker uses the `json` tag
+  name. `cbor.Marshal(zfs.ZfsData{Complete: true})` is `{"complete": true}`, byte for byte
+  our reply (`tests/conformance`, TestReplies).
 - **Q6. Exact upstream bytes for the empty SyncResponse.** **Settled (section 9):** upstream
   sends `{0:{8:0,10:0,11:0,12:0}}`. fxamacker's `omitempty` does not omit a struct-typed field,
   so the zero `Result` is encoded with its four non-omitempty fields. We send the same bytes
