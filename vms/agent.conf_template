@@ -1,0 +1,75 @@
+# BESZEL$ROOT:[CONF]AGENT.CONF - settings for the beszel agent for OpenVMS.
+#
+# Copy this file to AGENT.CONF, fill in HUB_URL, KEY and TOKEN, and protect it:
+#
+#     $ COPY BESZEL$ROOT:[CONF]AGENT.CONF_TEMPLATE BESZEL$ROOT:[CONF]AGENT.CONF
+#     $ SET FILE/PROTECTION=(S:RWED,O:RWED,G,W) BESZEL$ROOT:[CONF]AGENT.CONF
+#     $ @BESZEL$ROOT:[COM]BESZEL$STARTUP START
+#
+# The file holds the token, a secret: the agent warns at start if group or
+# world can read it.  One NAME=value per line; lines starting with # are
+# comments; a value may be put in double quotes.  A name the agent doesn't
+# know is an error, so a typing mistake never goes unnoticed.  The names are
+# beszel's own (https://beszel.dev), so its documentation applies.
+#
+# Any setting can also come from a logical name BESZEL$<NAME>, which wins over
+# this file, e.g.  $ DEFINE/SYSTEM BESZEL$LOG_LEVEL debug
+
+# ---- connecting to the hub (all three are required) -------------------------
+
+# The hub's address, as you open it in a browser: http:// or https://, with a
+# port and a path if it has them (e.g. behind a reverse proxy).
+HUB_URL=https://beszel.example.com
+
+# The hub's public key.  In the hub, "Add system" shows it: the whole line,
+# starting ssh-ed25519.  The agent answers only a hub that proves it holds the
+# matching private key.  Instead of KEY you can give KEY_FILE=<file>.
+KEY="ssh-ed25519 AAAA...paste the hub's key here..."
+
+# The token for this system, from the same "Add system" dialog (or a universal
+# token from Settings, Tokens).  Instead of TOKEN you can give TOKEN_FILE=<file>.
+TOKEN=00000000-0000-0000-0000-000000000000
+
+# ---- TLS ---------------------------------------------------------------------
+
+# For an https hub, the agent checks the hub's certificate against
+# BESZEL$ROOT:[CONF]CACERT.PEM (the public CAs, shipped with the kit).  If your
+# hub's certificate comes from your own CA, name that CA's PEM file here; it
+# is trusted in addition to the public ones.  The agent never skips the check.
+#CA_CERT_FILE=BESZEL$ROOT:[CONF]MY_CA.PEM
+
+# ---- what is reported -------------------------------------------------------
+
+# The disk shown as the system's disk, with an optional display name after "__".
+# Default: SYS$SYSDEVICE:
+#FILESYSTEM=SYS$SYSDEVICE:__System
+
+# More disks to chart, separated by commas, each with an optional "__name".
+#EXTRA_FILESYSTEMS=DKA100:__Data,DSA2:__Shadowed
+
+# Which LAN devices count as network traffic.  By default every LAN device
+# that has sent and received something.  A list picks devices; a list starting
+# with "-" leaves them out; * matches any characters.  Case doesn't matter.
+#NICS=EWA0,EWB0
+#NICS=-EIA*
+
+# The name a universal token gives the new system (otherwise its host name).
+#SYSTEM_NAME=Production VMS
+
+# ---- the agent itself ---------------------------------------------------------
+
+# debug, info (the default), warn or error.
+#LOG_LEVEL=info
+
+# Where the agent keeps its fingerprint, which ties it to its system in the
+# hub.  Default: BESZEL$ROOT:[DATA].  Don't delete the fingerprint: the hub
+# then refuses the agent until the system's fingerprint is reset in the hub.
+#DATA_DIR=BESZEL$ROOT:[DATA]
+
+# true: stop (and let BESZEL$RUN restart later) when the hub's name can't be
+# looked up, instead of retrying every 10 seconds.
+#EXIT_ON_DNS_ERROR=false
+
+# Only reported to the hub when a universal token creates the system; the
+# agent never listens on a port.
+#PORT=45876
