@@ -1,6 +1,7 @@
 # Phase 0: specification and probes (report)
 
-**Status:** done (2026-10-13), awaiting the user's exit review.
+**Status:** done (2026-10-13). Exit review: approved by the user on 2026-10-14, including all
+the recommendations in "Decisions for the exit review".
 
 **Verdict: feasible, and no blocker found.** Everything the agent needs works on both nodes
 from an unprivileged process:

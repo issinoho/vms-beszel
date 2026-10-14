@@ -11,7 +11,7 @@ Repository `vms-beszel`, PCSI product `BESZEL_AGENT` (producer ISSINOHO), rooted
 
 ## D1. Re-implement the agent in C; the upstream tree is the specification
 
-**Status:** proposed (2026-10-13).
+**Status:** approved by the user at the Phase 0 exit (2026-10-14).
 
 Upstream's agent is Go (beszel 0.21.0: ~33,000 lines in `agent/`, plus gopsutil and
 other dependencies). There is no Go toolchain or runtime for OpenVMS. The family's usual
@@ -36,7 +36,7 @@ Alternatives:
 
 ## D2. C99, VSI C, 32-bit pointers, SSL3 *_SHR32
 
-**Status:** proposed (2026-10-13).
+**Status:** approved by the user at the Phase 0 exit (2026-10-14).
 
 The same combination as vms-steward and vmsguard: system-service item lists are 32-bit
 structures, and SSL3's `*_SHR32` images match. VSI C exists on both nodes (x86-64
@@ -55,7 +55,7 @@ need an SSH server implementation or a libssh port. It goes on the "later" list.
 
 ## D4. Our own WebSocket client on SSL3, not libcurl
 
-**Status:** proposed (2026-10-13).
+**Status:** approved by the user at the Phase 0 exit (2026-10-14).
 
 The client side of RFC 6455 is small: the upgrade request, the `Sec-WebSocket-Accept`
 check, masked frames out, unmasked frames in, ping/pong, close, and fragmentation. That
@@ -70,7 +70,7 @@ libcurl would provide.
 
 ## D5. Configuration file with upstream's names
 
-**Status:** proposed (2026-10-13).
+**Status:** approved by the user at the Phase 0 exit (2026-10-14).
 
 `BESZEL$ROOT:[CONF]AGENT.CONF`, one `NAME=value` per line, `#` comments. The names are
 upstream's environment variables, so beszel's documentation and the hub's "add system"
@@ -92,7 +92,7 @@ silently.
 
 ## D6. Conformance tested against upstream's own code
 
-**Status:** proposed (2026-10-13).
+**Status:** approved by the user at the Phase 0 exit (2026-10-14).
 
 1. **Encoding:** a Go test module in `tests/conformance/` imports the pinned
    upstream packages (`internal/common`, `internal/entities/...`) and decodes every
@@ -109,8 +109,8 @@ Go is needed on the Linux workstation only.
 
 ## D7. Report the pinned upstream version; answer every action
 
-**Status:** proposed (2026-10-13); backed by the Phase 0 capture (PROTOCOL.md 3.3, 9).
-Final confirmation is the Phase 1 integration test.
+**Status:** approved by the user at the Phase 0 exit (2026-10-14); backed by the Phase 0
+capture (PROTOCOL.md 3.3, 9). Final confirmation is the Phase 1 integration test.
 
 `X-Beszel` and `Info.AgentVersion` are `0.21.0`, the pinned version, so the hub uses
 the current protocol (an `AgentResponse` wrapper and generic `Data` payloads) and
@@ -134,7 +134,7 @@ them on 0.20.0). Rejected unless Phase 0 shows an error reply makes the hub misb
 
 ## D8. One single-threaded process, detached, unprivileged account
 
-**Status:** proposed (2026-10-13).
+**Status:** approved by the user at the Phase 0 exit (2026-10-14).
 
 VMS has no `fork()`, and the work is light: one socket, one timer for the 5-second
 load-average sample, and collection when a request arrives. A `select()` loop over the
@@ -144,8 +144,8 @@ with only the privileges the Phase 0 probes prove necessary.
 
 ## D9. Metric mapping
 
-**Status:** proposed (2026-10-13) from the Phase 0 probes (NOTES.md). For the user to
-review at the Phase 0 exit.
+**Status:** approved by the user at the Phase 0 exit (2026-10-14), from the Phase 0 probes
+(NOTES.md). The open items (XFC size, LAN counter width) are settled in Phase 2.
 
 Principles: a value comes from a documented system interface or is left out. Derived
 values (load average) are computed the way Linux defines them and documented as derived.
@@ -177,7 +177,7 @@ No field is filled with a guess to make a chart look populated. Units are upstre
 
 ## D10. Reference tooling and golden fixtures
 
-**Status:** proposed (2026-10-13).
+**Status:** approved by the user at the Phase 0 exit (2026-10-14).
 
 The reference is upstream's **release binaries** (hub and agent, linux/amd64, verified
 against the release checksums), not a source build: they are what users run, and building
