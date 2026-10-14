@@ -55,3 +55,11 @@ clean:
 	rm -rf $(B)
 
 .PHONY: all test test-asan fuzz clean
+
+$(B)/gen_fixtures: $(CORE) src/plat/bz_crypto_ossl.c tests/conformance/gen_fixtures.c $(HDRS) | $(B)
+	$(CC) $(CFLAGS) -o $@ $(filter %.c,$^) $(LDLIBS)
+
+conformance: $(B)/gen_fixtures
+	tools/conformance.sh
+
+.PHONY: conformance
