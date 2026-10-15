@@ -218,6 +218,12 @@ OpenVMS V8.4-2L3 on an rx2660 (1 active CPU, VSI C 7.4-001).
     free space came back. If tracing is ever needed again: log in a batch job that only runs
     the program and logs out, analyze from another job with a CPU limit, and watch the disk.
 
+43. **A real silent network drop, 2026-10-15 at about 18:33** (the user saw nothing obvious;
+    probably a network glitch). IA64 got nothing from the hub and its 120 s deadline closed
+    the connection at 18:35:07; it reconnected at 18:35:27. x86's connection failed
+    outright ("Connection lost" at 18:35:26) and reconnected at 18:35:30. Neither process
+    restarted. This is the case the Phase 3 blackhole test simulated.
+
 ## Linux workstation
 
 21. **`pkill -f <pattern>` matches the shell running it** and killed the tool's own command
