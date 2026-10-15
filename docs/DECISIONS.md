@@ -245,7 +245,8 @@ that beszel's agent doesn't need.
 
 ## D14. Start the agent as its account with a persona
 
-**Status:** decided (2026-10-14), from the Phase 3 tests (NOTES.md 36–39). It follows from D12.
+**Status:** approved by the user at the Phase 3 exit (2026-10-15), from the Phase 3 tests
+(NOTES.md 36–39). It follows from D12.
 
 START runs the agent as the account named by its second parameter, or by the system
 logical `BESZEL$USER`. When that account isn't the caller's, `[BIN]BESZEL_LAUNCH.EXE`:

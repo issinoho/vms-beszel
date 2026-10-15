@@ -1,6 +1,6 @@
 # Phase 3: service and robustness (report)
 
-**Status:** done (2026-10-15), awaiting the user's exit review.
+**Status:** done (2026-10-15). Exit review: approved by the user on 2026-10-15, including D12–D15.
 
 **Verdict:** the agent runs as an unprivileged service on both architectures and survived
 24 hours against the user's real hub with no restart and no growth in memory. That
