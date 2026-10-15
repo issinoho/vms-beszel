@@ -32,6 +32,13 @@ belongs to the [vms-* family](https://openvms.issinoho.com) of open-source tools
 
 ## What you see in the hub
 
+<p align="center">
+  <img src="docs/images/hub-x86.png" width="49%" alt="The hub's page for an OpenVMS x86-64 system: up for 31 hours, OpenVMS E9.2-4 (x86-64) on a QEMU virtual machine, 7.1 GB of memory, with CPU, memory, disk and I/O charts">
+  <img src="docs/images/hub-ia64.png" width="49%" alt="The hub's page for an OpenVMS Integrity system: up for 13 days, OpenVMS V8.4-2L3 on an HP rx2660, 4 GB of memory, with CPU, memory, disk and I/O charts">
+</p>
+<p align="center"><em>An x86-64 system and an Integrity rx2660 in a beszel 0.21.0 hub, reported by this
+agent. Host names and addresses have been replaced.</em></p>
+
 | Chart | On OpenVMS |
 |---|---|
 | CPU, with user/system/idle breakdown and per-CPU usage | from the per-CPU mode counters (the same ones `MONITOR MODES` uses); user = user + supervisor mode, system = kernel + executive + interrupt + MP synchronisation |
