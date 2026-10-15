@@ -189,6 +189,16 @@ OpenVMS V8.4-2L3 on an rx2660 (1 active CPU, VSI C 7.4-001).
     The procedures and images must be world-readable, and every directory on the way must
     allow world execute. Files uploaded through sftp get no world access.
 
+40. **The hub's nightly backup is a real reconnect test.** The user's hub goes down briefly
+    every night for its backup. On 2026-10-15 at 03:04 both agents saw it close the
+    connection. Then came a 502 from the proxy, and about 40 s of attempts that failed in
+    `socket()` with "protocol wrong type for socket" (EPROTOTYPE). Both reconnected by
+    03:05 (IA64 03:05:23, x86 03:05:31), with no process restart: the soak PIDs are
+    unchanged. Closes from the hub at 03:33, 03:59 and 04:05 reconnected within 0–5 s.
+    The EPROTOTYPE is unexplained: by midday the name had only an IPv4 address. An
+    address of another family during the backup would fit, so connection errors now name
+    the address and its family ("connect to IPv4 127.0.0.1: Connection refused").
+
 ## Linux workstation
 
 21. **`pkill -f <pattern>` matches the shell running it** and killed the tool's own command

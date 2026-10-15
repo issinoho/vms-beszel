@@ -81,22 +81,34 @@ static void ossl_err(char *err, size_t errlen, const char *what)
     ERR_clear_error();
 }
 
+/* "IPv4 192.0.2.10" / "IPv6 2001:db8::1": errors name the address that failed
+   (NOTES.md 40: a socket() error at 03:04 didn't say which one) */
+static void addr_name(const struct addrinfo *ai, char *out, size_t cap)
+{
+    char host[64];
+    if (getnameinfo(ai->ai_addr, ai->ai_addrlen, host, sizeof host, NULL, 0, NI_NUMERICHOST) != 0)
+        snprintf(host, sizeof host, "?");
+    snprintf(out, cap, "%s %s", ai->ai_family == AF_INET6 ? "IPv6" : ai->ai_family == AF_INET ? "IPv4" : "address", host);
+}
+
 static int connect_timeout(const struct addrinfo *ai, unsigned timeout_ms, char *err, size_t errlen)
 {
+    char an[80];
     int fd, fl, rc, so = 0;
     socklen_t sl = sizeof so;
     fd_set w;
     struct timeval tv;
+    addr_name(ai, an, sizeof an);
     fd = socket(ai->ai_family, ai->ai_socktype, ai->ai_protocol);
     if (fd < 0) {
-        snprintf(err, errlen, "socket: %s", strerror(errno));
+        snprintf(err, errlen, "socket for %s: %s", an, strerror(errno));
         return -1;
     }
     fl = fcntl(fd, F_GETFL, 0);
     fcntl(fd, F_SETFL, fl | O_NONBLOCK);
     rc = connect(fd, ai->ai_addr, ai->ai_addrlen);
     if (rc != 0 && errno != EINPROGRESS) {
-        snprintf(err, errlen, "connect: %s", strerror(errno));
+        snprintf(err, errlen, "connect to %s: %s", an, strerror(errno));
         close(fd);
         return -1;
     }
@@ -107,13 +119,16 @@ static int connect_timeout(const struct addrinfo *ai, unsigned timeout_ms, char 
         tv.tv_usec = (long)(timeout_ms % 1000) * 1000;
         rc = select(fd + 1, NULL, &w, NULL, &tv);
         if (rc <= 0) {
-            snprintf(err, errlen, rc == 0 ? "connect: timed out" : "select: %s", strerror(errno));
+            if (rc == 0)
+                snprintf(err, errlen, "connect to %s: timed out", an);
+            else
+                snprintf(err, errlen, "select: %s", strerror(errno));
             close(fd);
             return -1;
         }
         getsockopt(fd, SOL_SOCKET, SO_ERROR, (char *)&so, &sl);
         if (so) {
-            snprintf(err, errlen, "connect: %s", strerror(so));
+            snprintf(err, errlen, "connect to %s: %s", an, strerror(so));
             close(fd);
             return -1;
         }
