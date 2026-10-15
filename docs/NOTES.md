@@ -206,9 +206,17 @@ OpenVMS V8.4-2L3 on an rx2660 (1 active CPU, VSI C 7.4-001).
     13:38:59. LANCP isn't installed with privileges and still shows the 64-bit figure to
     an unprivileged process. It most likely asks the privileged LANACP process through its
     "SHOW" mailbox (`LANACP_MBX-SHOW`); nothing in STARLET or LIB documents a 64-bit read.
-    An `ANALYZE/SSLOG` trace of LANCP was tried, but the logging session hung and was
-    abandoned. One LANCP counter read costs about 22 ms of CPU on IA64. D15: the agent
+    An `ANALYZE/SSLOG` trace of LANCP was tried and abandoned; see item 42. One LANCP counter read costs about 22 ms of CPU on IA64. D15: the agent
     reads a stuck device through LANCP.
+
+42. **Don't use `SET PROCESS/SSLOG` in a session that then runs `ANALYZE/SSLOG`.** On
+    2026-10-15 a trace of LANCP left logging on in the SSH session that then ran the
+    analysis. That session never ended. For an hour it used about 2 minutes of CPU on IA64's
+    single processor and grew its "empty" output file to 5,133,088 blocks (2.4 GiB) on the
+    system disk. DIRECTORY showed the file as 0 blocks because it was still open.
+    `SHOW DEVICE/FILES` found the process; it was stopped by PID and the file deleted, and the
+    free space came back. If tracing is ever needed again: log in a batch job that only runs
+    the program and logs out, analyze from another job with a CPU limit, and watch the disk.
 
 ## Linux workstation
 

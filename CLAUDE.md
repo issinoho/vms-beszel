@@ -60,7 +60,8 @@ The Go toolchain for the conformance tests is `cache/toolchain/go/bin/go`.
 
 Read `docs/NOTES.md` before touching system-service code: `$GETRMI` wants exact item
 sizes, `RMI$_MODES` return lengths are wrong, and `SYS$LIB_C.TLB` text must never be
-copied into the repo. Undefined symbols are *warnings* on VMS: check `$SEVERITY` after every LINK. Build from
+copied into the repo. Don't trace with `SET PROCESS/SSLOG` in a session that then analyzes the
+log: it never ended, and it wrote 2.4 GiB to the IA64 system disk (NOTES.md 42). Undefined symbols are *warnings* on VMS: check `$SEVERITY` after every LINK. Build from
 CLEAN after changing headers or qualifiers. C diagnostics go to SYS$ERROR: `define
 sys$error sys$output` in procedures run by vms.sh. Take item codes from the headers on the
 node (`LIBRARY/EXTRACT` from `SYS$STARLET_C.TLB`), never from memory. The sibling
