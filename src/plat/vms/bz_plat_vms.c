@@ -6,7 +6,9 @@
  *   $GETRMI   per-CPU mode times (RMI$_MODES), free/modified lists, run queue;
  *             every item must be passed its exact size (NOTES.md 1)
  *   $GETDVI   disk size and free blocks
- *   $QIO      LAN read-counters on each LAN device's unit 0 (NOTES.md 12-13)
+ *   $QIO      LAN read-counters on each LAN device's unit 0 (NOTES.md 12-13);
+ *             once a device's 32-bit counter sticks at 4 GiB, LANCP's 64-bit
+ *             figures instead (NOTES.md 41, DECISIONS.md D15)
  *
  * Built with SYS$LIB_C.TLB for NMADEF; nothing from that library is copied
  * into the sources (NOTES.md 18).
@@ -39,6 +41,10 @@
 #include "bz_agent.h"
 #include "bz_platform.h"
 #include "bz_text.h"
+
+/* POSIX, in the C RTL, but hidden by VSI C under /STANDARD=C99 (NOTES.md 26) */
+FILE *popen(const char *command, const char *mode);
+int pclose(FILE *stream);
 
 /* item lists: our own types, as the default STARLET headers have no IOSB (NOTES.md 16) */
 struct item {
@@ -296,8 +302,12 @@ struct nic {
     int have;
     unsigned int raw_tx, raw_rx;    /* last 32-bit readings */
     uint64_t tx, rx;                /* extended 64-bit totals */
-    int warned;
+    int stuck;                      /* a 32-bit counter stopped at 0xFFFFFFFF: use LANCP */
+    int lancp_failed;
+    uint64_t lancp_ms;              /* when LANCP was last asked */
 };
+
+#define LANCP_INTERVAL_MS 30000     /* about 22 ms of CPU a read on IA64 */
 static struct nic nics[BZ_MAX_NIC];
 static int nnic;
 static uint64_t nic_last_ms;
@@ -392,19 +402,42 @@ static int nic_read(struct nic *n, unsigned int *tx, unsigned int *rx)
     return got == 3;
 }
 
-static void extend(struct nic *n, unsigned int raw, unsigned int *last, uint64_t *total, const char *dir)
+static void extend(struct nic *n, unsigned int raw, unsigned int *last, uint64_t *total)
 {
-    /* a 32-bit counter that went down has wrapped: add the distance mod 2^32.
-       DECnet-style counters may instead stop at 0xFFFFFFFF (NOTES.md 13). */
+    /* a 32-bit counter that went down has wrapped: add the distance mod 2^32 */
     *total += (unsigned int)(raw - *last);
     *last = raw;
-    if (raw == 0xFFFFFFFFu && !n->warned) {
-        char msg[200];
-        n->warned = 1;
-        snprintf(msg, sizeof msg, "LAN counter for %s bytes %s is at its 32-bit maximum; if it stays "
-                 "there, its traffic is no longer counted until the counters are zeroed", n->name, dir);
-        bz_plat_log(BZ_LOG_WARN, msg);
+}
+
+/* LANCP's figures for a device: 64-bit, and readable without privilege
+   (LANCP asks the LANACP process; NOTES.md 41) */
+static int lancp_read(const char *dev, uint64_t *tx, uint64_t *rx)
+{
+    char cmd[96], line[256];
+    FILE *p;
+    int got = 0;
+    snprintf(cmd, sizeof cmd, "mcr lancp show device %s/counters", dev);
+    p = popen(cmd, "r");
+    if (!p)
+        return 0;
+    while (fgets(line, sizeof line, p)) {
+        unsigned long long v;
+        int off = 0;
+        const char *rest;
+        if (sscanf(line, " %llu %n", &v, &off) != 1 || off == 0)
+            continue;
+        rest = line + off;
+        /* exactly "Bytes received" / "Bytes sent", not "Multicast bytes ..." */
+        if (strncmp(rest, "Bytes received", 14) == 0) {
+            *rx = v;
+            got |= 2;
+        } else if (strncmp(rest, "Bytes sent", 10) == 0) {
+            *tx = v;
+            got |= 1;
+        }
     }
+    pclose(p);
+    return got == 3;
 }
 
 static void nic_refresh(void)
@@ -424,8 +457,37 @@ static void nic_refresh(void)
             n->rx = rx;
             continue;
         }
-        extend(n, tx, &n->raw_tx, &n->tx, "sent");
-        extend(n, rx, &n->raw_rx, &n->rx, "received");
+        if (!n->stuck && (tx == 0xFFFFFFFFu || rx == 0xFFFFFFFFu)) {
+            /* DECnet-style counters stop at their maximum instead of
+               wrapping (seen on IA64 EWB0, 2026-10-15) */
+            char msg[200];
+            n->stuck = 1;
+            n->lancp_ms = 0;
+            snprintf(msg, sizeof msg, "LAN counters for %s reached their 32-bit maximum: reading them "
+                     "through LANCP from now on (every %d s)", n->name, LANCP_INTERVAL_MS / 1000);
+            bz_plat_log(BZ_LOG_WARN, msg);
+        }
+        if (n->stuck) {
+            uint64_t now = bz_plat_now_ms(), ltx, lrx;
+            if (n->lancp_ms && now - n->lancp_ms < LANCP_INTERVAL_MS)
+                continue;
+            n->lancp_ms = now;
+            if (lancp_read(n->name, &ltx, &lrx)) {
+                /* the same counters, so the totals continue */
+                if (ltx > n->tx) n->tx = ltx;
+                if (lrx > n->rx) n->rx = lrx;
+                n->lancp_failed = 0;
+            } else if (!n->lancp_failed) {
+                char msg[160];
+                n->lancp_failed = 1;
+                snprintf(msg, sizeof msg, "LANCP couldn't read the counters for %s: its traffic "
+                         "isn't counted until it can", n->name);
+                bz_plat_log(BZ_LOG_WARN, msg);
+            }
+            continue;
+        }
+        extend(n, tx, &n->raw_tx, &n->tx);
+        extend(n, rx, &n->raw_rx, &n->rx);
     }
 }
 

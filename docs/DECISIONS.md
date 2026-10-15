@@ -268,3 +268,25 @@ Alternatives:
   (NOTES.md 36).
 - **`SUBMIT/USER` to a batch queue:** a real login, but it holds a batch slot for ever,
   needs batch access, and the kit would have to create a queue.
+
+## D15. Read a stuck LAN counter through LANCP
+
+**Status:** approved by the user (2026-10-15), from NOTES.md 41.
+
+The DECnet-style 32-bit byte counters that `$QIO IO$M_RD_COUNT` returns stop at
+4,294,967,295. After that, the hub would show no traffic for the device until its
+counters are zeroed, which takes privilege and resets everyone's figures. So once either
+of a device's byte counters reads 0xFFFFFFFF:
+- the agent logs it, and reads that device's counters through
+  `popen("mcr lancp show device <dev>/counters")`, unprivileged, at most every 30 s;
+- totals continue, because they are the same counters;
+- if LANCP fails, the agent logs it once and keeps the last totals.
+
+Other devices stay on the direct `$QIO`. The cost is about 22 ms of CPU per read on IA64.
+In the 1-second real-time view, the rate of a stuck device moves in 30 s steps; the
+hub's 60 s records are exact.
+
+Alternatives:
+- **LANACP's mailbox:** no subprocess, but the protocol is undocumented.
+- **A warning only:** the device's traffic would be lost.
+- **Zeroing the counters:** needs privilege, and disturbs LANCP's figures for operators.

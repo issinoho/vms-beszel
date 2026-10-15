@@ -199,6 +199,17 @@ OpenVMS V8.4-2L3 on an rx2660 (1 active CPU, VSI C 7.4-001).
     address of another family during the backup would fit, so connection errors now name
     the address and its family ("connect to IPv4 127.0.0.1: Connection refused").
 
+41. **The 32-bit LAN byte counters stick; they don't wrap** (settles item 13). IA64 EWB0's
+    "bytes received" passed 2^32 at 13:38 on 2026-10-15. LANCP went on counting
+    (4,295,007,435, then higher). The counter that `$QIO IO$M_RD_COUNT` returns stopped at
+    4,294,967,295: a 20 s sample saw 0 B/s received. The agent's warning fired at
+    13:38:59. LANCP isn't installed with privileges and still shows the 64-bit figure to
+    an unprivileged process. It most likely asks the privileged LANACP process through its
+    "SHOW" mailbox (`LANACP_MBX-SHOW`); nothing in STARLET or LIB documents a 64-bit read.
+    An `ANALYZE/SSLOG` trace of LANCP was tried, but the logging session hung and was
+    abandoned. One LANCP counter read costs about 22 ms of CPU on IA64. D15: the agent
+    reads a stuck device through LANCP.
+
 ## Linux workstation
 
 21. **`pkill -f <pattern>` matches the shell running it** and killed the tool's own command

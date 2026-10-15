@@ -46,7 +46,7 @@ agent. Host names and addresses have been replaced.</em></p>
 | Memory | used = total − free list − modified list; the XFC cache counts as used (OpenVMS doesn't report its size to programs) |
 | Swap | page files plus swap files |
 | Disk usage | the system disk, plus any disks you list |
-| Network | bytes sent and received per LAN device |
+| Network | bytes sent and received per LAN device. OpenVMS's 32-bit counters stop at 4 GiB; after that, the agent reads that device through LANCP every 30 s. |
 | Uptime, host name, CPU model, CPU count, memory size | from the system |
 | Alerts | every alert beszel offers for these: CPU, memory, disk, bandwidth, load average, and "system down" |
 
