@@ -12,7 +12,8 @@ Repository `vms-beszel`, PCSI product `BESZEL_AGENT` (producer ISSINOHO), rooted
 *Amended in Phase 4 (2026-10-16):* the PCSI product is `BESZEL`.
 `ISSINOHO-X86VMS-BESZEL_AGENT-V0021-0E1-1` is 40 characters, and PCSI refuses kit
 names over 39 (`%PCSI-I-KITNAMTOOLONG`), as vms-lighttpd found. The directory `[BESZEL]`,
-the `BESZEL$` logical names and the image names are unchanged.
+the `BESZEL$` logical names and the image names are unchanged. Confirmed by the user at
+the Phase 4 exit (2026-10-16).
 
 ## D1. Re-implement the agent in C; the upstream tree is the specification
 

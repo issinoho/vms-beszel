@@ -26,9 +26,9 @@ belongs to the [vms-* family](https://openvms.issinoho.com) of open-source tools
 - **Light:** a working set of a few megabytes. After the first connection (a few seconds of CPU
   for the TLS handshake on x86), it uses very little CPU between the hub's once-a-minute requests.
 
-> **Status:** working, and in testing on both architectures; the first PCSI kit
-> (v0.21.0-vms1) is being prepared. Until it is published, [install from
-> source](#installing-from-source); it takes a few minutes.
+> **Status:** the first release, **v0.21.0-vms1**, has PCSI kits for x86-64 and
+> Integrity on the [releases page](https://github.com/issinoho/vms-beszel/releases).
+> It was tested on both architectures, including a 24-hour run against a real hub.
 
 ## What you see in the hub
 

@@ -1,7 +1,8 @@
 # Phase 4: kit and release (report)
 
-**Status:** kits built and install-tested on both nodes (2026-10-16). Awaiting the exit
-review; nothing is released yet.
+**Status:** done (2026-10-16). Exit review: approved by the user on 2026-10-16: the
+product name `BESZEL` (D0), the boot lines left to the user, and the release as
+`v0.21.0-vms1`.
 
 **Verdict:** the PCSI kits install, configure, start, remove and reinstall cleanly on
 x86-64 and IA64. Both agents now run from the kit as BESZEL and report to the user's hub. The
