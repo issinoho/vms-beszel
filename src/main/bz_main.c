@@ -2,6 +2,9 @@
  *
  *   beszel_agent [<config-file>]
  *   beszel_agent --sample [secs] [disk...]    print what would be reported, no hub
+ *   beszel_agent --version                    print the version (MAKE_KIT checks it)
+ *   beszel_agent --random                     print 32 random characters (a password
+ *                                             for the agent's account, BESZEL$CONFIGURE)
  *
  * Stops on SIGINT/SIGTERM, or when a file named "stop" appears in DATA_DIR
  * (BESZEL$ROOT:[DATA]STOP. on OpenVMS): BESZEL$STARTUP.COM STOP creates it, and
@@ -261,6 +264,25 @@ int main(int argc, char **argv)
 
     if (argc > 1 && strcmp(argv[1], "--sample") == 0)
         return sample_mode(argc, argv);
+    if (argc > 1 && strcmp(argv[1], "--version") == 0) {
+        printf("beszel_agent %s\n", BZ_PORT_VERSION);
+        return EXIT_SUCCESS;
+    }
+    if (argc > 1 && strcmp(argv[1], "--random") == 0) {
+        /* letters and digits only: a VMS password, never typed by anyone */
+        static const char set[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+        unsigned char r[32];
+        char pw[33];
+        int i;
+        if (!bz_random(r, sizeof r))
+            return EXIT_FAILURE;
+        for (i = 0; i < 32; i++)
+            pw[i] = set[r[i] % 36];         /* 256 % 36 = 4: a tiny bias, harmless here */
+        pw[32] = 0;
+        printf("%s\n", pw);
+        memset(r, 0, sizeof r);
+        return EXIT_SUCCESS;
+    }
     if (!bz_plat_init())
         return EXIT_FAILURE;
     bz_conf_init(&conf, bz_plat_conf_override, NULL);

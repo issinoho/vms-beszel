@@ -1,0 +1,41 @@
+--
+-- PCSI product description for the beszel agent for OpenVMS (vms-beszel).
+-- Template: tools/kit.sh substitutes @PRODUCER@, @BASE@ and @PCSIVERSION@.
+--
+product @PRODUCER@ @BASE@ BESZEL @PCSIVERSION@ full ;
+
+    -- The agent links VSI's OpenSSL 3.0 shared images (SSL3$LIBSSL_SHR32,
+    -- SSL3$LIBCRYPTO_SHR32) for TLS and for checking the hub's signature.
+    software VSI @BASE@ SSL3 ;
+
+    information RELEASE_NOTES phase after ;
+
+    directory [BESZEL] ;
+    directory [BESZEL.BIN] ;
+    directory [BESZEL.COM] ;
+    directory [BESZEL.CONF] ;
+    directory [BESZEL.DATA] ;
+    directory [BESZEL.DOC] ;
+    directory [BESZEL.LOG] ;
+
+    file [BESZEL.BIN]BESZEL_AGENT.EXE ;
+    file [BESZEL.BIN]BESZEL_LAUNCH.EXE ;
+    file [BESZEL.COM]BESZEL$CONTROL.COM ;
+    file [BESZEL.COM]BESZEL$RUN.COM ;
+    file [BESZEL.COM]BESZEL$CONFIGURE.COM ;
+    file [BESZEL.CONF]AGENT.CONF_TEMPLATE ;
+    file [BESZEL.CONF]CACERT.PEM ;
+    file [BESZEL.DOC]README.VMS ;
+    file [BESZEL.DOC]LICENSE. ;
+    file [SYS$STARTUP]BESZEL$STARTUP.COM ;
+    file [SYS$STARTUP]BESZEL$SHUTDOWN.COM ;
+
+    -- Define BESZEL$ROOT now.  AGENT.CONF, the fingerprint in [DATA] and the logs
+    -- are never part of the kit, so an upgrade or a removal leaves them alone.
+    execute postinstall "@PCSI$DESTINATION:[SYS$STARTUP]BESZEL$STARTUP.COM INSTALL" interactive ;
+    -- On removal: stop the agent, deassign BESZEL$ROOT and BESZEL$USER.
+    execute install "CONTINUE" remove "@PCSI$DESTINATION:[SYS$STARTUP]BESZEL$STARTUP.COM REMOVE" ;
+
+    information POST_INSTALL phase after ;
+
+end product ;

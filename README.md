@@ -111,7 +111,7 @@ Then lay out the agent's directory tree, on any disk (here `SYS$SYSDEVICE:[BESZE
 $ CREATE/DIRECTORY SYS$SYSDEVICE:[BESZEL.BIN], [BESZEL.COM], [BESZEL.LOG]
 $ CREATE/DIRECTORY/PROTECTION=(S:RWE,O:RWE,G,W) SYS$SYSDEVICE:[BESZEL.CONF], [BESZEL.DATA]
 $ COPY [.BUILD]BESZEL_AGENT.EXE, BESZEL_LAUNCH.EXE SYS$SYSDEVICE:[BESZEL.BIN]
-$ COPY [.VMS]BESZEL$STARTUP.COM, BESZEL$RUN.COM SYS$SYSDEVICE:[BESZEL.COM]
+$ COPY [.VMS]BESZEL$CONTROL.COM, BESZEL$RUN.COM SYS$SYSDEVICE:[BESZEL.COM]
 $ COPY [.VMS]AGENT.CONF_TEMPLATE SYS$SYSDEVICE:[BESZEL.CONF]
 $ ! the public CA certificates, for an https hub: curl.se's extract of Mozilla's store
 $ COPY cacert.pem SYS$SYSDEVICE:[BESZEL.CONF]CACERT.PEM
@@ -196,7 +196,7 @@ $ AGENT --SAMPLE 10 DKA100:
 ## 4. Start it
 
 ```
-$ @BESZEL$ROOT:[COM]BESZEL$STARTUP START
+$ @BESZEL$ROOT:[COM]BESZEL$CONTROL START
 BESZEL_AGENT started (PID 0000a1b2)
 ```
 
@@ -204,10 +204,10 @@ Run it as SYSTEM (or another account with IMPERSONATE and DETACH): it starts the
 `BESZEL$USER`, or as the account you give as a second parameter (`START BESZEL`). It refuses
 SYSTEM itself, or an account that doesn't exist. Within a minute the system shows as **up**
 in the hub. To start it at every boot, add the two `DEFINE` lines above and the
-`@...BESZEL$STARTUP START` line to `SYS$MANAGER:SYSTARTUP_VMS.COM`, after TCP/IP has
+`@...BESZEL$CONTROL START` line to `SYS$MANAGER:SYSTARTUP_VMS.COM`, after TCP/IP has
 started. The kit will do the defining for you.
 
-| Command (`@BESZEL$ROOT:[COM]BESZEL$STARTUP ...`) | Does |
+| Command (`@BESZEL$ROOT:[COM]BESZEL$CONTROL ...`) | Does |
 |---|---|
 | `START` | Starts the detached process `BESZEL_AGENT` |
 | `STOP` | Asks the agent to stop. It says goodbye to the hub, which marks the system down at once. |

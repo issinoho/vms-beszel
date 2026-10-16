@@ -9,6 +9,11 @@ Each decision with its status, the evidence and the alternatives considered.
 Repository `vms-beszel`, PCSI product `BESZEL_AGENT` (producer ISSINOHO), rooted logical
 `BESZEL$ROOT`, image `[BIN]BESZEL_AGENT.EXE`. C identifiers use the prefix `bz_`.
 
+*Amended in Phase 4 (2026-10-16):* the PCSI product is `BESZEL`.
+`ISSINOHO-X86VMS-BESZEL_AGENT-V0021-0E1-1` is 40 characters, and PCSI refuses kit
+names over 39 (`%PCSI-I-KITNAMTOOLONG`), as vms-lighttpd found. The directory `[BESZEL]`,
+the `BESZEL$` logical names and the image names are unchanged.
+
 ## D1. Re-implement the agent in C; the upstream tree is the specification
 
 **Status:** approved by the user at the Phase 0 exit (2026-10-14).

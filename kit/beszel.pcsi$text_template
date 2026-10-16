@@ -1,0 +1,25 @@
+=product @PRODUCER@ @BASE@ BESZEL @PCSIVERSION@ full
+1 'PRODUCER
+=prompt @PRODUCER@
+1 'PRODUCT
+=prompt beszel agent @VERSION@ for OpenVMS (vms-beszel): reports this system to a beszel hub
+1 'NOTICE
+=prompt The beszel agent for OpenVMS is distributed under the MIT licence.
+1 RELEASE_NOTES
+=prompt Documentation is in [BESZEL.DOC]README.VMS under the installation directory.
+1 POST_INSTALL
+=prompt Post-installation tasks for the beszel agent (vms-beszel)
+    Once, as SYSTEM: create or check the agent's account (default BESZEL, with a
+    UIC group of its own above MAXSYSGROUP), set the protections, and create
+    BESZEL$ROOT:[CONF]AGENT.CONF from its template:
+    $ @BESZEL$ROOT:[COM]BESZEL$CONFIGURE
+    Put the hub's address, key and token in BESZEL$ROOT:[CONF]AGENT.CONF
+    (from the hub's "Add System" dialog), then:
+    $ @BESZEL$ROOT:[COM]BESZEL$CONTROL START
+    At boot, add to SYS$MANAGER:SYSTARTUP_VMS.COM (after TCP/IP):
+    $ @SYS$STARTUP:BESZEL$STARTUP.COM
+    At shutdown, add to SYS$MANAGER:SYSHUTDWN.COM:
+    $ @SYS$STARTUP:BESZEL$SHUTDOWN.COM
+
+PRODUCT REMOVE BESZEL stops the agent and deassigns BESZEL$ROOT; the
+configuration, the fingerprint, the logs and the account are kept.

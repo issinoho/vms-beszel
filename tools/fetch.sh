@@ -5,11 +5,26 @@
 #   fetch.sh          the source tree (the specification)
 #   fetch.sh --ref    also upstream's linux/amd64 release binaries (hub and agent) into
 #                     cache/ref/, checked against the release's checksums file (D10)
+#   fetch.sh --ca     the kit's CA bundle into cache/cacert.pem, checked against
+#                     CA_BUNDLE_SHA256
 set -euo pipefail
 root=$(cd "$(dirname "$0")/.." && pwd)
 # shellcheck source=/dev/null
 . "$root/upstream.conf"
 dest=$root/cache/$UPSTREAM_NAME-$UPSTREAM_VERSION
+if [ "${1:-}" = --ca ]; then
+    out=$root/cache/cacert.pem
+    if [ -f "$out" ] && echo "$CA_BUNDLE_SHA256  $out" | sha256sum -c --status; then
+        echo "$out (already there)"; exit 0
+    fi
+    mkdir -p "$root/cache"
+    curl -fsSL -o "$out.tmp" "$CA_BUNDLE_URL"
+    echo "$CA_BUNDLE_SHA256  $out.tmp" | sha256sum -c --status ||
+        { rm -f "$out.tmp"; echo "fetch.sh: $CA_BUNDLE_URL doesn't match CA_BUNDLE_SHA256" >&2; exit 1; }
+    mv "$out.tmp" "$out"
+    echo "$out ($CA_BUNDLE_URL)"
+    exit 0
+fi
 if [ "${1:-}" = --ref ]; then
     ref=$root/cache/ref
     mkdir -p "$ref"

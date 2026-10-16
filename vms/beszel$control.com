@@ -1,6 +1,6 @@
-$! BESZEL$STARTUP.COM - start, stop or check the beszel agent.
+$! BESZEL$CONTROL.COM - start, stop or check the beszel agent.
 $!
-$!   @BESZEL$ROOT:[COM]BESZEL$STARTUP [START|STOP|RESTART|STATUS] [account]   (default START)
+$!   @BESZEL$ROOT:[COM]BESZEL$CONTROL [START|STOP|RESTART|STATUS] [account]   (default START)
 $!
 $! START runs BESZEL$RUN.COM as a detached process named BESZEL_AGENT, with
 $! its log in BESZEL$ROOT:[LOG]BESZEL_AGENT.LOG (five versions kept).  If the
@@ -32,7 +32,7 @@ $ if action .eqs. "STATUS" then goto status
 $ if action .eqs. "STOP" then goto stop
 $ if action .eqs. "RESTART" then goto restart
 $ if action .eqs. "START" then goto start
-$ say "BESZEL$STARTUP: unknown action ''action' (START, STOP, RESTART or STATUS)"
+$ say "BESZEL$CONTROL: unknown action ''action' (START, STOP, RESTART or STATUS)"
 $ exit 44
 $!
 $start:
@@ -43,24 +43,24 @@ $   exit 1
 $ endif
 $ if f$search("BESZEL$ROOT:[BIN]BESZEL_AGENT.EXE") .eqs. ""
 $ then
-$   say "BESZEL$STARTUP: BESZEL$ROOT:[BIN]BESZEL_AGENT.EXE is missing"
+$   say "BESZEL$CONTROL: BESZEL$ROOT:[BIN]BESZEL_AGENT.EXE is missing"
 $   exit 44
 $ endif
 $ if f$search("BESZEL$ROOT:[CONF]AGENT.CONF") .eqs. ""
 $ then
-$   say "BESZEL$STARTUP: there is no BESZEL$ROOT:[CONF]AGENT.CONF; copy AGENT.CONF_TEMPLATE and fill it in"
+$   say "BESZEL$CONTROL: there is no BESZEL$ROOT:[CONF]AGENT.CONF; copy AGENT.CONF_TEMPLATE and fill it in"
 $   exit 44
 $ endif
 $! D12: never a system account (the agent checks its privileges itself)
 $ uicnum = f$identifier(user, "name_to_number")
 $ if uicnum .eq. 0
 $ then
-$   say "BESZEL$STARTUP: ''user' is not an account"
+$   say "BESZEL$CONTROL: ''user' is not an account"
 $   exit 44
 $ endif
 $ if uicnum / 65536 .le. f$getsyi("MAXSYSGROUP")
 $ then
-$   say "BESZEL$STARTUP: refusing to run the agent as ''user', which has a system UIC; define"
+$   say "BESZEL$CONTROL: refusing to run the agent as ''user', which has a system UIC; define"
 $   say "  the system logical name BESZEL$USER as an account of its own (see the README)"
 $   exit 44
 $ endif
@@ -85,7 +85,7 @@ $ wait 0:0:2
 $ gosub find_pid
 $ if pid .eqs. ""
 $ then
-$   say "BESZEL$STARTUP: the agent did not start; see BESZEL$ROOT:[LOG]BESZEL_AGENT.LOG"
+$   say "BESZEL$CONTROL: the agent did not start; see BESZEL$ROOT:[LOG]BESZEL_AGENT.LOG"
 $   exit 44
 $ endif
 $ say "BESZEL_AGENT started (PID ''pid')"

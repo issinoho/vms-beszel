@@ -1,0 +1,82 @@
+beszel agent @VERSION@ for OpenVMS (@ARCH@) - vms-beszel
+========================================================
+
+Reports this OpenVMS system to a beszel hub (https://beszel.dev), version
+0.21.0: CPU, memory, swap, disks, network and load, with the hub's charts,
+history and alerts.  The agent connects out to the hub; nothing listens on
+this system.  It runs as its own unprivileged account (NETMBX and TMPMBX only)
+and refuses to run as SYSTEM or with privileges.
+
+Requires: OpenVMS x86-64 (tested on E9.2-4) or Integrity (tested on
+V8.4-2L3), VSI TCP/IP Services, and VSI's SSL3 kit.
+
+Setting up (as SYSTEM)
+----------------------
+1. In the hub, click "Add System".  Note the public key (ssh-ed25519 ...) and
+   the token it shows; ignore its install commands, which are for Linux.
+
+2. Create the agent's account and set the protections, once:
+
+     $ @BESZEL$ROOT:[COM]BESZEL$CONFIGURE
+
+   It asks for the account (default BESZEL) and, for a new account, its UIC:
+   choose a group of its own, above MAXSYSGROUP (e.g. [377,1]).  The account
+   gets NETMBX and TMPMBX only and can't log in by any route; the agent still
+   runs as it.  Run it again at any time: it changes only an account it
+   created.
+
+3. Edit BESZEL$ROOT:[CONF]AGENT.CONF (made from AGENT.CONF_TEMPLATE, which
+   explains every setting).  Three are required:
+
+     HUB_URL=https://beszel.example.com
+     KEY="ssh-ed25519 AAAA..."
+     TOKEN=...
+
+   The file holds the token: keep it readable by the account only.  EDIT
+   makes a new version each time, so afterwards:
+
+     $ SET FILE/OWNER=BESZEL/PROTECTION=(S:RWED,O:RWED,G,W) -
+           BESZEL$ROOT:[CONF]AGENT.CONF;*
+     $ PURGE BESZEL$ROOT:[CONF]AGENT.CONF
+
+   Check what it would report, without contacting the hub:
+
+     $ AGENT := $BESZEL$ROOT:[BIN]BESZEL_AGENT.EXE
+     $ AGENT --SAMPLE 10
+
+4. Start it:
+
+     $ @BESZEL$ROOT:[COM]BESZEL$CONTROL START
+
+   Within a minute the system shows as up in the hub.  STOP, RESTART (after
+   changing AGENT.CONF) and STATUS work the same way.
+
+5. At boot and shutdown, add to SYS$MANAGER:SYSTARTUP_VMS.COM (after TCP/IP)
+   and SYS$MANAGER:SYSHUTDWN.COM:
+
+     $ @SYS$STARTUP:BESZEL$STARTUP.COM
+     $ @SYS$STARTUP:BESZEL$SHUTDOWN.COM
+
+Files
+-----
+  BESZEL$ROOT:[BIN]   BESZEL_AGENT.EXE, and BESZEL_LAUNCH.EXE (starts the agent
+                      as its account)
+  BESZEL$ROOT:[COM]   BESZEL$CONTROL.COM, BESZEL$RUN.COM (restarts the agent if
+                      it stops), BESZEL$CONFIGURE.COM
+  BESZEL$ROOT:[CONF]  AGENT.CONF, AGENT.CONF_TEMPLATE, CACERT.PEM (the public
+                      CAs, for https hubs)
+  BESZEL$ROOT:[DATA]  the fingerprint, which ties the agent to its system in
+                      the hub: don't delete it
+  BESZEL$ROOT:[LOG]   BESZEL_AGENT.LOG (five versions kept)
+  SYS$MANAGER:BESZEL$CONFIG.COM   the account, and whether to start at boot
+
+PRODUCT REMOVE BESZEL stops the agent and deassigns BESZEL$ROOT and
+BESZEL$USER.  AGENT.CONF, the fingerprint, the logs, the site settings and the
+account are kept, so a reinstall carries on where it left off.
+
+When it doesn't connect, BESZEL$ROOT:[LOG]BESZEL_AGENT.LOG says why.  The
+messages are explained at https://github.com/issinoho/vms-beszel.
+
+The beszel agent for OpenVMS is distributed under the MIT licence; see
+[BESZEL.DOC]LICENSE.  beszel is (c) its authors; this project contains none of
+its code.  OpenVMS is a trademark of VMS Software, Inc.
