@@ -15,6 +15,9 @@ pcsiversion=$(sed -n 's/^#define BZ_PCSI_VERSION *"\(.*\)"/\1/p' "$top/src/core/
 [ -n "$version" ] && [ -n "$pcsiversion" ] || { echo "kit: no version in bz_version.h" >&2; exit 1; }
 read -r _ ARCH _ _ _ _ _ < <(awk -v n="$node" '$1==n' "$top/tools/nodes.conf")
 case $ARCH in [Xx]86*) base=X86VMS; archname=x86-64 ;; *) base=I64VMS; archname=Integrity ;; esac
+# One kit at a time: every build shares out/kitstage.
+mkdir -p "$top/out"; exec 9> "$top/out/.kit.lock"
+flock -n 9 || { echo "kit: another kit.sh is running (out/kitstage is shared)" >&2; exit 1; }
 "$top/tools/fetch.sh" --ca > /dev/null
 
 # Generated kit inputs: never committed (they carry the version), uploaded to [.KIT].
@@ -44,5 +47,7 @@ VMS_TIMEOUT=900 "$top/tools/vms.sh" "$node" dcl '@[.kit]make_kit' | tee "$top/ou
 kit=$(sed -n 's/^MAKE_KIT: kit .*\]\([^;]*\);.*/\1/p' "$top/out/kit-$node.log" | head -1)
 [ -n "$kit" ] || { echo "kit: no kit produced (see out/kit-$node.log)" >&2; exit 1; }
 arch=$("$top/tools/vms.sh" "$node" dcl 'write sys$output f$edit(f$getsyi("ARCH_NAME"),"UPCASE")' | tr -d '\r' | grep -E '^[A-Z0-9_]+$' | head -1)
+rm -f "$top/out/kits/$kit"     # so a failed fetch can't leave the previous kit in SHA256SUMS
 "$top/tools/vms.sh" "$node" get "KIT_$arch/$kit" "$top/out/kits/$kit"
+[ -s "$top/out/kits/$kit" ] || { echo "kit: couldn't fetch $kit from $node" >&2; exit 1; }
 (cd "$top/out/kits" && sha256sum ISSINOHO-*-BESZEL-*.PCSI > SHA256SUMS && cat SHA256SUMS)

@@ -244,6 +244,10 @@ bz_sock *bz_net_open(const char *host, const char *port, int tls, const char *ca
     memset(&hints, 0, sizeof hints);
     hints.ai_family = AF_UNSPEC;
     hints.ai_socktype = SOCK_STREAM;
+    /* VMS TCP/IP answers each address twice for SOCK_STREAM, as TCP and as SCTP,
+       and socket() refuses the SCTP ones with EPROTOTYPE: that error, from the
+       last entry tried, hid the real one when the hub was down (NOTES.md 45) */
+    hints.ai_protocol = IPPROTO_TCP;
     rc = getaddrinfo(host, port, &hints, &res);
     if (rc != 0) {
         snprintf(err, errlen, "lookup of %s failed: %s", host, gai_strerror(rc));

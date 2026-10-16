@@ -7,7 +7,7 @@ $! its log in BESZEL$ROOT:[LOG]BESZEL_AGENT.LOG (five versions kept).  If the
 $! account is given (P2), or else the system logical name BESZEL$USER names one,
 $! the process runs as that user (which needs the privileges of a system
 $! startup); otherwise as the caller.  It refuses an unknown account and any system-group UIC (D12).
-$! BESZEL$ROOT and BESZEL$USER are read from the system table only, never from
+$! BESZEL$USER is read from the system table only, never from
 $! job or group tables other users could write (security review L3).
 $! STOP asks the agent to stop (the file BESZEL$ROOT:[DATA]STOP.), waits up to
 $! 20 s for it to close its connection, and only then stops the process.
@@ -19,13 +19,13 @@ $ proc = f$environment("procedure")
 $ dev = f$parse(proc,,,"device","no_conceal")
 $ dir = f$parse(proc,,,"directory","no_conceal") - "][" - "><"
 $ physroot = dev + (dir - ".COM]")     ! "DEV:[A.B" - add ".X]" for a subdirectory
-$ sysroot = f$trnlnm("BESZEL$ROOT", "LNM$SYSTEM_TABLE", , "EXECUTIVE")
-$ if sysroot .eqs. "" then sysroot = physroot + ".]"
-$ define/process/nolog/translation=concealed BESZEL$ROOT 'sysroot'
+$! Files are named from physroot, the tree this procedure is in, rather than
+$! BESZEL$ROOT: a process logical name defined here would outlive the call and
+$! hide the system one from the caller (NOTES.md 44).
 $ user = f$edit(p2, "upcase,trim")
 $ if user .eqs. "" then user = f$edit(f$trnlnm("BESZEL$USER", "LNM$SYSTEM_TABLE"), "upcase,trim")
 $ if user .eqs. "" then user = f$edit(f$getjpi("", "username"), "upcase,trim")
-$ stopfile = "BESZEL$ROOT:[DATA]STOP."
+$ stopfile = physroot + ".DATA]STOP."
 $ name = "BESZEL_AGENT"
 $ gosub find_pid
 $ if action .eqs. "STATUS" then goto status
@@ -41,12 +41,12 @@ $ then
 $   say "BESZEL_AGENT is already running (PID ''pid')"
 $   exit 1
 $ endif
-$ if f$search("BESZEL$ROOT:[BIN]BESZEL_AGENT.EXE") .eqs. ""
+$ if f$search(physroot + ".BIN]BESZEL_AGENT.EXE") .eqs. ""
 $ then
 $   say "BESZEL$CONTROL: BESZEL$ROOT:[BIN]BESZEL_AGENT.EXE is missing"
 $   exit 44
 $ endif
-$ if f$search("BESZEL$ROOT:[CONF]AGENT.CONF") .eqs. ""
+$ if f$search(physroot + ".CONF]AGENT.CONF") .eqs. ""
 $ then
 $   say "BESZEL$CONTROL: there is no BESZEL$ROOT:[CONF]AGENT.CONF; copy AGENT.CONF_TEMPLATE and fill it in"
 $   exit 44
@@ -65,8 +65,8 @@ $   say "  the system logical name BESZEL$USER as an account of its own (see the
 $   exit 44
 $ endif
 $ if f$search(stopfile) .nes. "" then delete/nolog 'stopfile';*
-$ if f$search("BESZEL$ROOT:[LOG]BESZEL_AGENT.LOG") .nes. "" then -
-     purge/nolog/keep=5 BESZEL$ROOT:[LOG]BESZEL_AGENT.LOG
+$ if f$search(physroot + ".LOG]BESZEL_AGENT.LOG") .nes. "" then -
+     purge/nolog/keep=5 'physroot'.LOG]BESZEL_AGENT.LOG
 $ if user .eqs. f$edit(f$getjpi("", "username"), "upcase,trim")
 $ then
 $   run/detached sys$system:loginout.exe /authorize/process_name='name' -

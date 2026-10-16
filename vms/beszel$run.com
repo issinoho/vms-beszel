@@ -3,7 +3,7 @@ $!
 $! Runs BESZEL$ROOT:[BIN]BESZEL_AGENT.EXE and starts it again if it exits,
 $! waiting 15 s, then twice as long after each quick failure (up to 5 minutes);
 $! a run of 10 minutes or more resets the wait.  It stops for good when
-$! BESZEL$ROOT:[DATA]STOP. exists (BESZEL$STARTUP STOP creates it).
+$! BESZEL$ROOT:[DATA]STOP. exists (BESZEL$CONTROL STOP creates it).
 $!
 $! BESZEL$ROOT is taken from this procedure's own location when it isn't
 $! defined, so a tree anywhere works without a system logical name.

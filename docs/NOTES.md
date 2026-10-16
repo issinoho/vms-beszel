@@ -198,6 +198,7 @@ OpenVMS V8.4-2L3 on an rx2660 (1 active CPU, VSI C 7.4-001).
     The EPROTOTYPE is unexplained: by midday the name had only an IPv4 address. An
     address of another family during the backup would fit, so connection errors now name
     the address and its family ("connect to IPv4 127.0.0.1: Connection refused").
+    Explained in 45: the EPROTOTYPE came from the SCTP copy of the same IPv4 address.
 
 41. **The 32-bit LAN byte counters stick; they don't wrap** (settles item 13). IA64 EWB0's
     "bytes received" passed 2^32 at 13:38 on 2026-10-15. LANCP went on counting
@@ -223,6 +224,26 @@ OpenVMS V8.4-2L3 on an rx2660 (1 active CPU, VSI C 7.4-001).
     the connection at 18:35:07; it reconnected at 18:35:27. x86's connection failed
     outright ("Connection lost" at 18:35:26) and reconnected at 18:35:30. Neither process
     restarted. This is the case the Phase 3 blackhole test simulated.
+44. **A process logical name hides the system one, and a procedure's DEFINE/PROCESS
+    outlives it.** The IA64 install test (2026-10-16) first stopped the test-tree agent
+    with the test tree's old BESZEL$STARTUP STOP, which did `DEFINE/PROCESS BESZEL$ROOT`
+    to the test tree. PRODUCT INSTALL then defined the system BESZEL$ROOT, but the
+    process name won: `@BESZEL$ROOT:[COM]BESZEL$CONFIGURE` failed with RMS-E-FNF (status
+    %X10018292; the test tree has no [COM]), and the "copy into the product tree" copied
+    the test tree onto itself (COPY-E-OPENOUT, RMS-E-FEX). x86 didn't show it, because
+    its test tree already had the newer procedure. BESZEL$CONTROL now names its files
+    from its own location and defines no logical names. BESZEL$RUN.COM still defines
+    one, but in the detached process it runs in.
+45. **getaddrinfo() answers every address twice, as TCP and as SCTP** (settles the
+    "protocol wrong type for socket" of NOTES 40). With hints of AF_UNSPEC and
+    SOCK_STREAM, a name that DNS answers comes back as protocol 6 *and* protocol 132
+    for each address, on both nodes. socket() refuses the SCTP entries with EPROTOTYPE.
+    A name from the local hosts database or a numeric address comes back once, as
+    protocol 0. The agent logged "socket for IPv4 <hub address>: protocol wrong type
+    for socket" whenever the hub was unreachable (the nightly backup at 03:05, a
+    restart at 08:03). The TCP attempt had failed first, but the error kept was the
+    SCTP entry's, which hid the real one. Asking for IPPROTO_TCP in the hints drops the
+    SCTP entries (`probe_gai.c`, both nodes, 2026-10-16).
 
 ## Linux workstation
 
