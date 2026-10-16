@@ -85,15 +85,39 @@ its own system. Set `TOKEN` to the universal token and, optionally, `SYSTEM_NAME
 
 ### With the PCSI kit
 
-*(The first kit, v0.21.0-vms1, is being prepared; this is how it will install.)* Download the
-kit for your architecture from the [releases page](https://github.com/issinoho/vms-beszel/releases)
-and check it against the release's `SHA256SUMS`. A kit copied through a non-VMS system loses
-its record format, so restore that first:
+Download the kit for your architecture (`X86VMS` or `I64VMS`) from the
+[releases page](https://github.com/issinoho/vms-beszel/releases) and check it against the
+release's `SHA256SUMS`. A kit copied through a non-VMS system loses its record format, so
+restore that first. Then, as SYSTEM:
 
 ```
-$ SET FILE/ATTRIBUTE=(RFM:FIX,LRL:8192,MRS:8192,RAT:NONE) ISSINOHO-*-BESZEL_AGENT-*.PCSI
-$ PRODUCT INSTALL BESZEL_AGENT /PRODUCER=ISSINOHO /SOURCE=dev:[dir]
+$ SET FILE/ATTRIBUTE=(RFM:FIX,LRL:8192,MRS:8192,RAT:NONE) ISSINOHO-*-BESZEL-*.PCSI
+$ PRODUCT INSTALL BESZEL /PRODUCER=ISSINOHO /SOURCE=dev:[dir]
+$ @BESZEL$ROOT:[COM]BESZEL$CONFIGURE
 ```
+
+The kit installs into `SYS$COMMON:[BESZEL]` and defines the system logical name
+`BESZEL$ROOT`. `BESZEL$CONFIGURE` creates the agent's account and sets the tree's
+protections. It asks for the account's name (default BESZEL) and, for a new account, its UIC:
+choose a group of its own, above `MAXSYSGROUP` (8 by default), for example `[377,1]`. It also
+asks whether to start the agent at boot, and makes `AGENT.CONF` from its template. You can run
+it again at any time. It changes only an account it created itself (the owner field says
+"beszel agent"), so it never changes a real user's account.
+
+To start the agent at boot and stop it cleanly at shutdown, add these two lines. Put the
+first in `SYS$MANAGER:SYSTARTUP_VMS.COM`, after TCP/IP has started, and the second in
+`SYS$MANAGER:SYSHUTDWN.COM`:
+
+```
+$ @SYS$STARTUP:BESZEL$STARTUP.COM
+$ @SYS$STARTUP:BESZEL$SHUTDOWN.COM
+```
+
+`PRODUCT REMOVE BESZEL` stops the agent and deassigns the logical names. It keeps
+`AGENT.CONF`, the fingerprint in `[DATA]`, the logs, the account and the site settings
+(`SYS$MANAGER:BESZEL$CONFIG.COM`), so a reinstall or an upgrade carries on where it left off.
+
+Then go on to step 3.
 
 ### Installing from source
 
@@ -125,8 +149,8 @@ curl, and check it against curl.se's published SHA-256.
 
 The agent won't run as SYSTEM, or as any account with privileges beyond NETMBX and TMPMBX.
 A process with a system UIC, or one authorized for privileges it could turn back on, could
-do far more than report statistics. So it needs a small account of its own. The kit will
-create it; with a from-source install, as SYSTEM:
+do far more than report statistics. So it needs a small account of its own.
+`BESZEL$CONFIGURE` creates it from the kit. With a from-source install, create it yourself, as SYSTEM:
 
 ```
 $ SET DEFAULT SYS$SYSTEM
@@ -151,6 +175,8 @@ flag: OpenVMS then refuses to create processes as it. Everything the account use
 reachable by it: `[BIN]` and `[COM]` world-readable, `[CONF]`, `[DATA]` and `[LOG]` its own.
 
 ## 3. Configure
+
+With the kit, `AGENT.CONF` already exists: go straight to `EDIT`. From source:
 
 ```
 $ COPY BESZEL$ROOT:[CONF]AGENT.CONF_TEMPLATE BESZEL$ROOT:[CONF]AGENT.CONF
@@ -205,7 +231,7 @@ Run it as SYSTEM (or another account with IMPERSONATE and DETACH): it starts the
 SYSTEM itself, or an account that doesn't exist. Within a minute the system shows as **up**
 in the hub. To start it at every boot, add the two `DEFINE` lines above and the
 `@...BESZEL$CONTROL START` line to `SYS$MANAGER:SYSTARTUP_VMS.COM`, after TCP/IP has
-started. The kit will do the defining for you.
+started. With the kit, `SYS$STARTUP:BESZEL$STARTUP.COM` does all of that (see step 2).
 
 | Command (`@BESZEL$ROOT:[COM]BESZEL$CONTROL ...`) | Does |
 |---|---|
@@ -230,7 +256,7 @@ The log says why. These are the messages you may see:
 | `TLS: certificate not trusted: unable to get local issuer certificate` | The hub's certificate is from a CA the agent doesn't know. Point `CA_CERT_FILE` at that CA's PEM file. |
 | `TLS: the hub's certificate is not for <name>` | `HUB_URL` uses a name or address the certificate doesn't list. Use the name on the certificate. |
 | `lookup of <name> failed` | DNS: check that `TCPIP SHOW HOST <name>` works on the OpenVMS system. |
-| `connect: connection refused` / `timed out` | The hub, or a firewall, isn't letting the system in. Check `HUB_URL` and the port. |
+| `connect to IPv4 <address>: Connection refused` / `timed out` | The hub, or a firewall, isn't letting the system in. Check `HUB_URL` and the port. |
 | `HUB_URL must start with http:// or https://` | Use the address you open in a browser, not `ws://` or `wss://`. |
 | `refusing to run the agent as SYSTEM` / `authorized for privileges beyond NETMBX and TMPMBX` | Run it as its own account (see "The agent's account"). The agent won't run as SYSTEM or with privileges. |
 | `HUB_URL is http://: the token crosses the network in clear text` | A warning, not an error. Use `https://` if anyone else could be on the path. |
