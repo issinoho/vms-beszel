@@ -244,6 +244,15 @@ OpenVMS V8.4-2L3 on an rx2660 (1 active CPU, VSI C 7.4-001).
     restart at 08:03). The TCP attempt had failed first, but the error kept was the
     SCTP entry's, which hid the real one. Asking for IPPROTO_TCP in the hints drops the
     SCTP entries (`probe_gai.c`, both nodes, 2026-10-16).
+46. **A local symbol hides a global one of the same name, even one a nested procedure
+    has just assigned.** BESZEL$STARTUP set local defaults (`beszel_autostart = "NO"`)
+    and then ran SYS$MANAGER:BESZEL$CONFIG.COM, which assigns globals
+    (`beszel_autostart == "YES"`). Back in the startup the local "NO" won, so it exited
+    quietly at every boot without defining BESZEL$USER or starting the agent. Seen after
+    both nodes rebooted (2026-10-17): BESZEL$ROOT defined, no BESZEL$USER, no agent.
+    A probe (x86, 2026-10-18) printed "NO" with the local default and "YES" once
+    the local was deleted. The Phase 4 install test missed it because it started the
+    agent with BESZEL$CONTROL START and never rebooted. The defaults are now global.
 
 ## Linux workstation
 

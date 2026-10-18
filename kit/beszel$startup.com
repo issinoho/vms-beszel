@@ -35,12 +35,18 @@ $ if op .eqs. "INSTALL" then exit 1
 $!
 $! boot: the site settings name the account, and say whether to start
 $ if f$search("SYS$MANAGER:BESZEL$CONFIG.COM") .eqs. "" then exit 1
-$ beszel_account = ""
-$ beszel_autostart = "NO"
+$! Global (==), like the assignments in BESZEL$CONFIG.COM: a local symbol of
+$! the same name would hide them, and AUTOSTART would always read NO (NOTES.md 46)
+$ beszel_account == ""
+$ beszel_autostart == "NO"
 $ @SYS$MANAGER:BESZEL$CONFIG.COM
 $ if beszel_account .nes. "" then -
      define/system/executive_mode BESZEL$USER 'f$edit(beszel_account, "UPCASE,TRIM")'
-$ if f$edit(beszel_autostart, "UPCASE,TRIM") .nes. "YES" then exit 1
+$ if f$edit(beszel_autostart, "UPCASE,TRIM") .nes. "YES"
+$ then
+$   write sys$output "BESZEL$STARTUP: start at boot is off (SYS$MANAGER:BESZEL$CONFIG.COM)"
+$   exit 1
+$ endif
 $ @BESZEL$ROOT:[COM]BESZEL$CONTROL START
 $ exit 1
 $!
