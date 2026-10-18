@@ -74,3 +74,22 @@ both nodes with `/ERASE`; the soak data is in `out/soak/`.
 | D0 | The PCSI product is `BESZEL` (the 39-character limit) | Confirm |
 | Boot | The lines in `SYSTARTUP_VMS.COM` and `SYSHUTDWN.COM` are yours to add on each node | Add them when convenient. Until then the agent runs, but won't come back after a reboot |
 | Release | Tag `v0.21.0-vms1`; a GitHub release with both kits, `SHA256SUMS` and notes in the family format; add vms-beszel to the family site (`vms-grep/site/projects.json`) and vms-grep's README | Go ahead when you say so |
+
+## vms2 (2026-10-18): the boot path
+
+After both nodes rebooted on 2026-10-17, neither agent came back: vms1's `BESZEL$STARTUP`
+never started the agent at boot (NOTES.md 46). The install test above had started it with
+`BESZEL$CONTROL START`, so it never ran that path. vms2 fixes the startup procedure and
+nothing else.
+
+| Kit | SHA-256 |
+|---|---|
+| `ISSINOHO-X86VMS-BESZEL-V0021-0E2-1.PCSI` | `a2223014cf1ac3c6fa8e5bf12f349243fc92416ae331827e16a70291953328ae` |
+| `ISSINOHO-I64VMS-BESZEL-V0021-0E2-1.PCSI` | `edec1b8d43af62b135cf17702db6a231fec9403edb8a3cb97e1ece6cd62605fa` |
+
+Upgrade test (`probes/upgrade_test.com`, approved: both nodes). Native tests: 228 checks,
+0 failed, on both. On each node: `BESZEL$CONTROL STOP`, then `PRODUCT INSTALL` of vms2 over
+vms1 ("V0.21-0E2 installed, V0.21-0E1 removed"), then `BESZEL$USER` deassigned and
+`@SYS$STARTUP:BESZEL$STARTUP` run as a boot would. The startup defined `BESZEL$USER = BESZEL`
+and started the agent as BESZEL with TMPMBX and NETMBX only. It logged 0.21.0-vms2 and
+connected to the hub with the kept `AGENT.CONF` and fingerprint (x86 01:16:12, IA64 01:18:17).

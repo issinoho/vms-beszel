@@ -26,9 +26,10 @@ belongs to the [vms-* family](https://openvms.issinoho.com) of open-source tools
 - **Light:** a working set of a few megabytes. After the first connection (a few seconds of CPU
   for the TLS handshake on x86), it uses very little CPU between the hub's once-a-minute requests.
 
-> **Status:** the first release, **v0.21.0-vms1**, has PCSI kits for x86-64 and
+> **Status:** the current release, **v0.21.0-vms2**, has PCSI kits for x86-64 and
 > Integrity on the [releases page](https://github.com/issinoho/vms-beszel/releases).
-> It was tested on both architectures, including a 24-hour run against a real hub.
+> It fixes vms1's `BESZEL$STARTUP.COM`, which never started the agent at boot.
+> Both architectures were tested, including a 24-hour run against a real hub.
 
 ## What you see in the hub
 
@@ -116,6 +117,18 @@ $ @SYS$STARTUP:BESZEL$SHUTDOWN.COM
 `PRODUCT REMOVE BESZEL` stops the agent and deassigns the logical names. It keeps
 `AGENT.CONF`, the fingerprint in `[DATA]`, the logs, the account and the site settings
 (`SYS$MANAGER:BESZEL$CONFIG.COM`), so a reinstall or an upgrade carries on where it left off.
+
+To upgrade, stop the agent, install the new kit over the old one, and start the agent again.
+There is no need to run `BESZEL$CONFIGURE` again:
+
+```
+$ @BESZEL$ROOT:[COM]BESZEL$CONTROL STOP
+$ PRODUCT INSTALL BESZEL /PRODUCER=ISSINOHO /SOURCE=dev:[dir]
+$ @SYS$STARTUP:BESZEL$STARTUP.COM          ! or @BESZEL$ROOT:[COM]BESZEL$CONTROL START
+```
+
+**If you installed vms1:** its `BESZEL$STARTUP.COM` never starts the agent at boot, even when
+you chose to, so upgrade to vms2 if the agent should come back after a reboot.
 
 Then go on to step 3.
 
