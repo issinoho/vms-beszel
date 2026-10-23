@@ -1,10 +1,13 @@
-# vms-beszel protocol specification (beszel 0.21.0, WebSocket mode)
+# vms-beszel protocol specification (beszel 0.21.1, WebSocket mode)
 
 This document describes the protocol between a beszel **agent** and an **unmodified beszel hub
-0.21.0**, as far as an agent that only uses WebSocket needs it. It was written from the pinned
-upstream tree in `cache/beszel-0.21.0`. Every reference `file:line` is relative to that tree.
+0.21.1**, as far as an agent that only uses WebSocket needs it. Sections 1-9 were written from
+upstream 0.21.0, and their `file:line` references are relative to that tree (`tools/fetch.sh`
+at commit 97ed300 fetches it). **Section 10 lists what 0.21.1 changed**, with references to the
+pinned tree `cache/beszel-0.21.1`. Where section 10 and an earlier section disagree, section 10
+is right.
 
-Our agent reports agent version `0.21.0`, `Os = 0` (Linux) and `OsName = "OpenVMS <version>"`.
+Our agent reports agent version `0.21.1`, `Os = 0` (Linux) and `OsName = "OpenVMS <version>"`.
 It never listens for SSH.
 
 Two library sources are **not** in the tree: `github.com/lxzan/gws v1.10.2` (WebSocket) and
@@ -56,7 +59,7 @@ The standard RFC 6455 headers (`Host`, `Upgrade`, `Connection`, `Sec-WebSocket-K
 `Sec-WebSocket-Version: 13`) are added by gws **[lib]**. The agent's `gws.ClientOption` sets
 no subprotocol and no compression (`agent/client.go:186-197`).
 
-**HUB_HEADERS does not exist in 0.21.0.** No file in the tree mentions it (a search of the
+**HUB_HEADERS does not exist in 0.21.0** (0.21.1 adds it: section 10). No file in the tree mentions it (a search of the
 whole tree for `HUB_HEADERS` finds nothing), and the only request headers are the three above.
 DECISIONS.md D5 lists `HUB_HEADERS`. It must either be dropped or be documented as a vms-beszel
 extension that upstream does not have.
@@ -623,7 +626,7 @@ MaxDiskIoStats) are **never sent**. The hub computes them during rollup. Keys 1,
 | 29 | Battery (`bat`) | Battery = [2]uint8 | omitzero | [percent, state] | absent |
 | 31 | NetworkInterfaces (`ni`) | map[string][4]uint64 | omitempty | per NIC: **[up B/s, down B/s, total bytes sent, total bytes received]** (`agent/network.go:201`). Totals are the raw cumulative counters. | as upstream |
 | 32 | DiskIO (`dio`) | [2]uint64 | omitzero | root **[read B/s, write B/s]**, integer (`agent/disk.go:729-730`, `:790-791`) | required if available |
-| 33 | CpuBreakdown (`cpub`) | []float64 | omitempty | 5 entries **[user, system, iowait, steal, idle]**, each a % of total time, clamped 0–100, 2dp (`agent/system.go:162-168`, `agent/cpu.go:67-74`). Nice, irq and softirq are in no entry; the UI shows them as "Other" = 100 − sum. | 5 entries |
+| 33 | CpuBreakdown (`cpub`) | []float64 | omitempty | *0.21.1: 8 entries, see section 10.* 5 entries **[user, system, iowait, steal, idle]**, each a % of total time, clamped 0–100, 2dp (`agent/system.go:162-168`, `agent/cpu.go:67-74`). Nice, irq and softirq are in no entry; the UI shows them as "Other" = 100 − sum. | 5 entries |
 | 34 | CpuCoresUsage (`cpus`) | Uint8Slice = []uint8 | omitempty | busy % per core, rounded to an integer 0–100 (`agent/cpu.go:103-108`). **CBOR byte string** (5.2). | as upstream |
 | 35 | DiskIoStats (`dios`) | [6]float64 | omitzero | root **[read time %, write time %, utilisation %, r_await ms, w_await ms, weighted I/O % ×100]**, 2dp (`agent/disk.go:749-785`, `:794-799`) | only fill what VMS can measure; 4.8 |
 | 36 | Fans (`f`) | map[string]uint16 | omitempty | RPM | absent |
@@ -631,6 +634,8 @@ MaxDiskIoStats) are **never sent**. The hub computes them during rollup. Keys 1,
 | 38 | DiskIOTotal (`diot`) | [2]uint64 | omitzero | root cumulative [read bytes, write bytes] (`agent/disk.go:792-793`) | if available |
 | 39 | ZfsPools (`z`) | map[string]*ZfsPool | omitempty | — | absent |
 | 40 | WiFi (`wf`) | map[string]int8 | omitempty | dBm | absent |
+| 41 | MemBytes (`mem`) | [4]uint64 | omitzero | *0.21.1:* **[total, used, buff/cache, ZFS ARC]** bytes (section 10) | sent; ARC 0 |
+| 42 | SwapBytes (`swap`) | [2]uint64 | omitzero | *0.21.1:* **[total, used]** bytes (section 10) | sent |
 
 ### 4.5 Info
 
@@ -682,6 +687,7 @@ MaxDiskIoStats) are **never sent**. The hub computes them during rollup. Keys 1,
 | 9 | MemoryTotal | uint64 | never | total memory in **bytes** (`:108-113`) | bytes |
 | 10 | SmartInterval | time.Duration (int64 ns) | omitempty | only with `SMART_INTERVAL`. The hub then uses it instead of 1 h (`internal/hub/systems/system.go:191-197`). | absent (see Q10) |
 | 11 | ZfsInterval | time.Duration | omitempty | `ZFS_INTERVAL` (`internal/hub/systems/system.go:198-203`) | absent |
+| 12 | Sockets | int | omitempty | *0.21.1:* physical CPU packages, 0 if unknown (section 10) | absent |
 
 The hub upserts `system_details` from these fields (`internal/hub/systems/system.go:368-391`). The
 UI never uses Os outside 0–3. **Any other value crashes the system page**: `osInfo[os]` is
@@ -698,8 +704,8 @@ would otherwise be encoded under their Go field names (Q6).
 |---|---|---|---|---|
 | 0 | DiskTotal (`d`) | float64 | never | GiB 2dp (`agent/disk.go:672`) |
 | 1 | DiskUsed (`du`) | float64 | never | GiB 2dp (`:673`) |
-| 2 | DiskReadPs (`r`) | float64 | **never** | deprecated: read MiB/s 2dp (`:776`) |
-| 3 | DiskWritePs (`w`) | float64 | **never** | deprecated: write MiB/s 2dp (`:777`) |
+| 2 | DiskReadPs (`r`) | float64 | **never**; *omitzero in 0.21.1* | deprecated: read MiB/s 2dp (`:776`); the 0.21.1 agent no longer sets it |
+| 3 | DiskWritePs (`w`) | float64 | **never**; *omitzero in 0.21.1* | deprecated: write MiB/s 2dp (`:777`); as key 2 |
 | 6 | DiskReadBytes (`rb`) | uint64 | omitempty | read B/s (`:778`) |
 | 7 | DiskWriteBytes (`wb`) | uint64 | omitempty | write B/s (`:779`) |
 | 8 | DiskIoStats (`dios`) | [6]float64 | omitzero | as Stats key 35 (`:780-785`) |
@@ -956,7 +962,7 @@ file plus `BESZEL$<key>` logical names.
 | `KEY` | used if set **and** non-empty (`internal/cmd/agent/agent.go:128-130`). Format in 2.3. | one of KEY / KEY_FILE |
 | `KEY_FILE` | read if KEY is unset or empty. If the variable is not set at all, the agent exits with "no key provided" (`:133-142`). | |
 | `CA_CERT_FILE` | PEM file. Its certificates are **added** to the system roots; a read or parse error is **fatal** at start (`agent/client.go:144-164`, `agent/connection_manager.go:168-173`). Normal hostname verification applies. | SSL3: add to the trust store |
-| `HUB_HEADERS` | **does not exist in 0.21.0** | drop it, or document it as our own extension (D5) |
+| `HUB_HEADERS` | **does not exist in 0.21.0**; 0.21.1 adds it (section 10) | not supported (D5, D16) |
 | `SYSTEM_NAME` | only sent as `Name` in the universal-token reply (`agent/client.go:304`) | |
 | `LISTEN` / `PORT` | SSH listen address. LISTEN, else PORT, else `:45876`; a bare port gets a `:` prefix (`agent/server.go:256-272`). In WS mode it only supplies `Port` in the universal-token reply (`agent/client.go:306-307`). | optional; default `"45876"` |
 | `NETWORK` | SSH network type `tcp`/`unix` (`agent/server.go:277-285`) | not applicable |
@@ -1027,7 +1033,8 @@ Each question says what would settle it.
 - **Q11. The `Kernel` tooltip and `Arch` text** on VMS. What exactly should be shown? A cosmetic
   D9 item.
 - **Q12. HUB_HEADERS** is in D5 but not in upstream 0.21.0. Keep it as an extension, or drop it?
-  *Settle:* a decision by the user.
+  *Settled at the Phase 0 exit:* dropped. Upstream 0.21.1 added it (section 10); whether to
+  support it now is open (D16).
 
 ## 9. Evidence from the reference capture (Phase 0)
 
@@ -1056,3 +1063,56 @@ subscription (`tools/rtsub.py`) at t=80 s. The captures and frames are in git-ig
 The first frame's signature verified (on Linux, `openssl pkeyutl -verify -rawin`) as Ed25519
 over the token bytes, with the key from the hub's `ssh-ed25519` line. The same check with a
 changed token failed. No ZFS request was seen in 200 s.
+
+## 10. Changes in 0.21.1
+
+Upstream released 0.21.1 on 2026-10-22. References in this section are to
+`cache/beszel-0.21.1`. Found by comparing the two tags (`gh api
+repos/henrygd/beszel/compare/v0.21.0...v0.21.1`) and confirmed by the conformance tests (D6)
+and `tests/integration/itest.py` against the 0.21.1 release hub.
+
+**Unchanged:** the URL, the upgrade headers the hub checks, the handshake, the envelope keys
+(`internal/common/common-ws.go:37-55`; only legacy SmartData key 5 lost `omitempty`, which
+changes nothing for an absent map), the action numbers and the GetData request.
+`X-Beszel` and `Info.AgentVersion` are now `0.21.1` (`beszel.go:9`).
+
+**Memory and swap in bytes.** Two new Stats fields (`internal/entities/system/system.go:62-64`):
+
+| Key | Field (JSON) | Go type | Omit rule | Content |
+|---|---|---|---|---|
+| 41 | MemBytes (`mem`) | [4]uint64 | omitzero | [total, used, buff/cache, ZFS ARC] bytes |
+| 42 | SwapBytes (`swap`) | [2]uint64 | omitzero | [total, used] bytes; used = total − free, never below 0 |
+
+The 0.21.1 agent fills both and still fills the GB fields (keys 2, 3, 5-8) from the same
+values, for hubs older than 0.21.1 (`agent/memory.go:18-55`). The GB fields are marked
+deprecated and will be removed upstream in a later release. MemPct is used/total from the
+bytes, as before. The hub derives the bytes from the GB fields **only when MemBytes or
+SwapBytes is all zero** (`internal/hub/systems/system.go:1125-1137`); otherwise it stores
+what the agent sent. The UI reads `mem`/`swap` and falls back to the GB fields for older
+records (`SITE/types.d.ts:108-127`).
+
+**FsStats rates omitted when zero.** FsStats DiskReadPs/DiskWritePs (keys 2, 3) changed from
+"never omitted" to omitzero (`internal/entities/system/system.go:126-127`); the 0.21.1 agent
+no longer sets them, and the hub folds any it gets into `rb`/`wb`
+(`internal/hub/systems/system.go:1114-1124`). The UI reads only `rb`/`wb`, defaulting to 0
+(`SITE/components/routes/system/charts/disk-charts.tsx:46-58`). Stats keys 12/13 were already
+omitzero.
+
+**CpuBreakdown has 8 entries:** [user, system, iowait, steal, idle, **irq, softirq, nice**]
+(`internal/entities/system/system.go:53`, `agent/system.go:166-177`). The UI charts entries 5-7
+when present and "Other" as 100 − sum (`SITE/components/routes/system/cpu-sheet.tsx:58-123`),
+so a 5-entry breakdown still displays.
+
+**Details.Sockets** (key 12, int, omitempty): physical CPU packages, 0 if unknown
+(`internal/entities/system/system.go:206`); the hub stores it in `system_details.sockets`
+(`internal/hub/systems/system.go:384`).
+
+**HUB_HEADERS** (agent): comma- or newline-separated `Name: value` pairs added to the upgrade
+request; X-Token and X-Beszel in it are ignored with a warning, and values are never logged
+(`agent/client.go:176-206`, `:241-248`).
+
+**Hub timing.** The hub's read deadline is now 100 s, not 70 s (`internal/hub/ws/ws.go:26`).
+When a poll fails, the hub pings the agent to keep the connection, unless the agent has sent
+nothing for 3 minutes (`internal/hub/systems/system.go:177-183`, `:820`). Both only make the
+hub more tolerant of a slow agent.
+

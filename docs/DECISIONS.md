@@ -164,6 +164,7 @@ No field is filled with a guess to make a chart look populated. Units are upstre
 | `cpub` [user, system, iowait, steal, idle] | the same | user = user + super; system = kernel + exec + MP synch + interrupt (`[0]−[7]`, clamped at 0) + compat; **iowait = 0**, **steal = 0** (VMS doesn't measure them); idle. "Other" is then 0. |
 | LoadAvg [1, 5, 15] | `RMI$_CUR + RMI$_COM + RMI$_COMO`, sampled every 5 s | Linux's exponential damping (constants 1884/2014/2037 over 2048, as `calc_load`). **Derived**, and documented as such. It starts at 0 at agent start, as Linux does at boot. |
 | Mem, MemUsed, MemPct | `SYI$_MEMSIZE` × `SYI$_PAGE_SIZE`; free = `RMI$_FRLIST`; used = total − free − `RMI$_MODLIST` | The modified list is reclaimable cache, like Linux's dirty page cache. |
+| MemBytes, SwapBytes (0.21.1) | the same values as the GB fields, unrounded | [total, used, buff/cache = 0, ZFS ARC = 0] and [total, used] bytes (D16) |
 | MemBuffCache | XFC allocated size | **Closed (Phase 2):** no public interface reports it (NOTES.md 24). Send 0, and XFC memory counts as used. |
 | Swap, SwapUsed | the page files plus the swap files, from `SYI$_PAGEFILE_*` and `SYI$_SWAPFILE_*` | used = page − free. The chart shows only when used > 0 (PROTOCOL.md 4.8). *Phase 2:* "used" means pages actually in use, as Linux's SwapTotal − SwapFree does. It does not mean SHOW MEMORY's "committed" reservations. |
 | DiskTotal, DiskUsed, DiskPct (root) | `$GETDVI` MAXBLOCK, FREEBLOCKS on `SYS$SYSDEVICE` (or `FILESYSTEM`) | 512-byte blocks; pct = used / total (no root reserve on ODS-5, so gopsutil's used/(used+avail) is the same) |
@@ -297,3 +298,34 @@ Alternatives:
 - **LANACP's mailbox:** no subprocess, but the protocol is undocumented.
 - **A warning only:** the device's traffic would be lost.
 - **Zeroing the counters:** needs privilege, and disturbs LANCP's figures for operators.
+
+## D16. Follow upstream 0.21.1 (release 0.21.1-vms1)
+
+**Status:** approved by the user (2026-10-23): "check for upstream new version", then "yes"
+to moving the pin and adding the byte fields.
+
+Upstream released 0.21.1 on 2026-10-22. The pin moves to it (`upstream.conf`), we report
+version `0.21.1`, and our release is 0.21.1-vms1 (PCSI V0.21-1E1). PROTOCOL.md section 10
+lists what changed. What we do about each change:
+
+- **MemBytes and SwapBytes (Stats keys 41, 42): sent**, from the same counters as the GB
+  fields, which we keep sending as upstream does. The GB fields are deprecated and will be
+  removed upstream; sending the bytes now means that removal costs us nothing, and the hub
+  stores exact bytes instead of converting from rounded GB. The integration test checks
+  the hub stored ours (128 MiB of swap, not 0.13 GB converted).
+- **FsStats DiskReadPs/DiskWritePs: no longer sent.** They are omitzero in 0.21.1 and were
+  always 0 from us. The conformance test compares bytes with upstream's encoder, so this is
+  required for byte equality, and the UI no longer reads them.
+- **CpuBreakdown: still 5 entries.** The 0.21.1 UI shows a 5-entry breakdown correctly. VMS
+  has no softirq or nice. Its interrupt mode could fill "irq", but that would move time out
+  of "system", where D9 puts it. Revisit if wanted.
+- **Details.Sockets: not sent.** It is omitempty, so absence means "unknown". `$GETSYI`
+  may be able to report it, but nobody has checked yet.
+- **HUB_HEADERS: still not supported.** D5 dropped it because upstream lacked it. Upstream
+  has it now, so adding it is the user's call (it would need config parsing, header
+  validation and a rule never to log the values).
+
+Alternatives: stay on 0.21.0. Rejected: the hub is unmodified upstream, so users who update
+their hub would run ahead of our tested version. A 0.21.0 agent still works with a 0.21.1
+hub, but the GB fields will eventually go.
+
