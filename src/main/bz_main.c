@@ -11,7 +11,7 @@
  * BESZEL$RUN.COM then doesn't restart the agent.  A stop file left from before
  * is removed at start.
  *
- * Portable over bz_platform.h.  Settings follow upstream 0.21.0's names and
+ * Portable over bz_platform.h.  Settings follow upstream 0.21.1's names and
  * rules (PROTOCOL.md 7, DECISIONS.md D5).
  */
 #include <stdarg.h>

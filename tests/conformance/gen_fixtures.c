@@ -40,6 +40,10 @@ static void stats(struct bz_stats_out *o, int many)
     o->la[0] = 0.52; o->la[1] = 0.31; o->la[2] = 0.2;
     o->mem = 7.09; o->mem_used = 1.03; o->mem_pct = 14.57; o->mem_bc = 0.17;
     o->swap = 1.78; o->swap_used = 0.31;
+    /* the byte fields the GB fields above were rounded from */
+    o->mem_bytes[0] = UINT64_C(7612895232); o->mem_bytes[1] = UINT64_C(1110341632);
+    o->mem_bytes[2] = UINT64_C(182452224);
+    o->swap_bytes[0] = UINT64_C(1911029760); o->swap_bytes[1] = UINT64_C(332398592);
     o->disk_total = 21.46; o->disk_used = 11.92; o->disk_pct = 55.57;
     strcpy(o->rdn, "System");
     o->bw[0] = 5120; o->bw[1] = 81920;
@@ -82,14 +86,14 @@ int main(int argc, char **argv)
 
     /* CombinedData alone */
     stats(&o, 0);
-    bz_encode_combined(&b, &o, &id, "0.21.0"); put("combined-details-1", &b); bz_buf_clear(&b);
-    bz_encode_combined(&b, &o, NULL, "0.21.0"); put("combined-1", &b); bz_buf_clear(&b);
+    bz_encode_combined(&b, &o, &id, "0.21.1"); put("combined-details-1", &b); bz_buf_clear(&b);
+    bz_encode_combined(&b, &o, NULL, "0.21.1"); put("combined-1", &b); bz_buf_clear(&b);
     stats(&o, 1);
-    bz_encode_combined(&b, &o, &id, "0.21.0"); put("combined-many", &b); bz_buf_clear(&b);
+    bz_encode_combined(&b, &o, &id, "0.21.1"); put("combined-many", &b); bz_buf_clear(&b);
     {   /* an idle system: everything optional left out */
         struct bz_stats_out z;
         memset(&z, 0, sizeof z);
-        bz_encode_combined(&b, &z, NULL, "0.21.0"); put("combined-empty-1", &b); bz_buf_clear(&b);
+        bz_encode_combined(&b, &z, NULL, "0.21.1"); put("combined-empty-1", &b); bz_buf_clear(&b);
     }
 
     /* AgentResponse envelopes, as the agent sends them */
@@ -100,7 +104,7 @@ int main(int argc, char **argv)
     stats(&o, 0);
     bz_reply_begin(&b, &r, 1);
     bz_cb_uint(&b, 1);
-    bz_encode_combined(&b, &o, &id, "0.21.0");
+    bz_encode_combined(&b, &o, &id, "0.21.1");
     put("reply-getdata-1", &b); bz_buf_clear(&b);
 
     r.action = 1;

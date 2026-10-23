@@ -309,9 +309,9 @@ static void test_ws(void)
     CHECK(bz_ws_head_len((const unsigned char *)"HTTP/1.1 101\r\n", 14) == 0);
 
     bz_buf_init(&b);
-    bz_ws_request(&b, "h:1", "/api/beszel/agent-connect", key, "tok", "0.21.0", "UA");
+    bz_ws_request(&b, "h:1", "/api/beszel/agent-connect", key, "tok", "0.21.1", "UA");
     CHECK(strstr((char *)b.p, "GET /api/beszel/agent-connect HTTP/1.1\r\nHost: h:1\r\n") == (char *)b.p);
-    CHECK(strstr((char *)b.p, "\r\nX-Token: tok\r\n") && strstr((char *)b.p, "\r\nX-Beszel: 0.21.0\r\n"));
+    CHECK(strstr((char *)b.p, "\r\nX-Token: tok\r\n") && strstr((char *)b.p, "\r\nX-Beszel: 0.21.1\r\n"));
     CHECK(!strstr((char *)b.p, "Extensions") && memcmp(b.p + b.len - 4, "\r\n\r\n", 4) == 0);
 
     /* masked client frame, RFC 6455 5.7 "Hello" with our own mask */
@@ -524,6 +524,8 @@ static void test_stats(void)
     CHECK(o.cpu == 25 && o.cpub[0] == 15 && o.cpub[1] == 10 && o.cpub[4] == 75);
     CHECK(o.ncores == 2 && o.cores[0] == 0 && o.cores[1] == 50);
     CHECK(o.mem == 8 && o.mem_used == 3 && o.mem_pct == 37.5 && o.swap == 2 && o.swap_used == 0);
+    CHECK(o.mem_bytes[0] == s.mem_total && o.mem_bytes[1] == s.mem_used && o.mem_bytes[2] == 0 &&
+          o.mem_bytes[3] == 0 && o.swap_bytes[0] == s.swap_total && o.swap_bytes[1] == 0);
     CHECK(o.disk_total == 20 && o.disk_used == 10 && o.disk_pct == 50 && strcmp(o.rdn, "System") == 0);
     CHECK(o.nefs == 1 && strcmp(o.efs[0].key, "Tools") == 0 && o.efs[0].total == 1 && o.efs[0].used == 0.25);
     CHECK(o.nni == 1 && o.bw[0] == 0 && o.bw[1] == 0);  /* first network sample: no rate yet */
@@ -591,7 +593,7 @@ static void test_stats(void)
     o.cores[1] = 0x09;
     o.uptime = 5;
     o.threads = 2;
-    bz_encode_combined(&b, &o, NULL, "0.21.0");
+    bz_encode_combined(&b, &o, NULL, "0.21.1");
     {
         bz_cbr c;
         uint64_t v, k, i, prev = 0;
@@ -724,7 +726,7 @@ static void test_agent(void)
     strcpy(cfg.fingerprint, "f00d");
     cfg.system_name = "vms1";
     cfg.port = "45876";
-    cfg.version = "0.21.0";
+    cfg.version = "0.21.1";
     cfg.user_agent = "UA";
     memset(&id, 0, sizeof id);
     strcpy(id.hostname, "node");
@@ -734,7 +736,7 @@ static void test_agent(void)
     env.runq = fake_runq;
     env.log = fake_log;
     bz_agent_init(&a, &cfg, &id, &env, 1000);
-    a.st.cfg.version = "0.21.0";
+    a.st.cfg.version = "0.21.1";
     strcpy(a.st.cfg.root.dev, "DKA0:");
 
     /* pacing: connect at once; a failure waits 10 s */

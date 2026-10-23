@@ -1,6 +1,6 @@
 /* bz_stats.c - beszel statistics from raw counters (see bz_stats.h).
  *
- * Line references are to the pinned upstream tree (cache/beszel-0.21.0).
+ * Line references are to the pinned upstream tree (cache/beszel-0.21.1).
  */
 #include <math.h>
 #include <string.h>
@@ -375,7 +375,13 @@ void bz_stats_compute(struct bz_stats *st, unsigned cache_ms, uint64_t now_ms,
     for (i = 0; i < 3; i++)
         o->la[i] = bz_two_decimals(st->load.avg[i]);
 
-    /* agent/system.go:194-219 */
+    /* agent/memory.go:18-55: the byte fields, and the GB fields upstream still
+       sends for hubs older than 0.21.1 */
+    o->mem_bytes[0] = s->mem_total;
+    o->mem_bytes[1] = s->mem_used;
+    o->mem_bytes[2] = s->mem_buffcache;
+    o->swap_bytes[0] = s->swap_total;
+    o->swap_bytes[1] = s->swap_used;
     o->swap = to_gib(s->swap_total);
     o->swap_used = to_gib(s->swap_used);
     o->mem = to_gib(s->mem_total);
@@ -438,13 +444,12 @@ static void encode_stats(bz_buf *b, const struct bz_stats_out *o)
         bz_cb_uint(b, 21);
         bz_cb_map(b, (size_t)o->nefs);
         for (i = 0; i < o->nefs; i++) {
-            /* FsStats: 0 d, 1 du, 2 r, 3 w (never omitted); the rest omitted */
+            /* FsStats: 0 d, 1 du; the rest omitted (2 r and 3 w are omitzero
+               since 0.21.1, and we never measure them) */
             bz_cb_text(b, o->efs[i].key);
-            bz_cb_map(b, 4);
+            bz_cb_map(b, 2);
             bz_cb_uint(b, 0); bz_cb_f64(b, o->efs[i].total);
             bz_cb_uint(b, 1); bz_cb_f64(b, o->efs[i].used);
-            bz_cb_uint(b, 2); bz_cb_f64(b, 0);
-            bz_cb_uint(b, 3); bz_cb_f64(b, 0);
         }
         cnt++;
     }
@@ -472,6 +477,20 @@ static void encode_stats(bz_buf *b, const struct bz_stats_out *o)
     if (o->ncores) {                            /* Uint8Slice: a byte string */
         bz_cb_uint(b, 34);
         bz_cb_bytes(b, o->cores, (size_t)o->ncores);
+        cnt++;
+    }
+    if (o->mem_bytes[0] || o->mem_bytes[1] || o->mem_bytes[2] || o->mem_bytes[3]) {   /* omitzero */
+        bz_cb_uint(b, 41);
+        bz_cb_array(b, 4);
+        for (i = 0; i < 4; i++)
+            bz_cb_uint(b, o->mem_bytes[i]);
+        cnt++;
+    }
+    if (o->swap_bytes[0] || o->swap_bytes[1]) {
+        bz_cb_uint(b, 42);
+        bz_cb_array(b, 2);
+        bz_cb_uint(b, o->swap_bytes[0]);
+        bz_cb_uint(b, o->swap_bytes[1]);
         cnt++;
     }
     bz_cb_map_end(b, m, cnt);

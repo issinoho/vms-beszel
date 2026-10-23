@@ -2,7 +2,7 @@
  *
  * HubRequest   {0: action, 1: data, 2: id}
  * AgentResponse{0: id, 1: SystemData, 2: Fingerprint, 3: Error, 4: String, 7: Data}
- * 0.21.0 still answers the handshake in key 2 and GetData in key 1.
+ * 0.21.1 still answers the handshake in key 2 and GetData in key 1.
  */
 #ifndef BZ_PROTO_H
 #define BZ_PROTO_H

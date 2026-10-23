@@ -184,7 +184,7 @@ int main(int argc, char **argv)
     memset(&cfg, 0, sizeof cfg);
     bz_url_parse(&cfg.url, "http://hub:1", err, sizeof err);
     cfg.token = "t";
-    cfg.version = "0.21.0";
+    cfg.version = "0.21.1";
     cfg.user_agent = "UA";
     cfg.port = "45876";
     cfg.system_name = "";

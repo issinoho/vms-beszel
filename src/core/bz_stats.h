@@ -1,6 +1,6 @@
 /* bz_stats.h - beszel statistics from raw counters, and their CBOR encoding.
  *
- * Mirrors upstream's agent 0.21.0 (PROTOCOL.md 4.2-4.7):
+ * Mirrors upstream's agent 0.21.1 (PROTOCOL.md 4.2-4.7):
  *  - CPU and network deltas are kept per request interval (CacheTimeMs), so the
  *    hub's 1 s real-time view never moves the 60 s baselines; a new interval is
  *    seeded from the 60000 baseline (CPU) or starts at zero rate (network);
@@ -66,7 +66,9 @@ struct bz_stats_out {
     int ncores;
     unsigned char cores[BZ_MAX_CPU];
     double la[3];
-    double mem, mem_used, mem_pct, mem_bc, swap, swap_used;
+    double mem, mem_used, mem_pct, mem_bc, swap, swap_used;    /* GiB, deprecated in 0.21.1 */
+    uint64_t mem_bytes[4];  /* total, used, buff/cache, ZFS ARC (always 0) */
+    uint64_t swap_bytes[2]; /* total, used */
     double disk_total, disk_used, disk_pct;
     char rdn[64];
     uint64_t bw[2];

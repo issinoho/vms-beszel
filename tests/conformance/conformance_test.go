@@ -111,6 +111,9 @@ func TestCombinedData(t *testing.T) {
 		{"Stats.LoadAvg", s.LoadAvg == [3]float64{0.52, 0.31, 0.2}},
 		{"Stats.Mem", s.Mem == 7.09 && s.MemUsed == 1.03 && s.MemPct == 14.57 && s.MemBuffCache == 0.17},
 		{"Stats.Swap", s.Swap == 1.78 && s.SwapUsed == 0.31},
+		{"Stats.MemBytes", s.MemBytes == [4]uint64{7612895232, 1110341632, 182452224, 0}},
+		{"Stats.SwapBytes", s.SwapBytes == [2]uint64{1911029760, 332398592}},
+		{"Stats.ExtraFs deprecated rates absent", s.ExtraFs["Tools"] != nil && s.ExtraFs["Tools"].DiskReadPs == 0 && s.ExtraFs["Tools"].DiskWritePs == 0},
 		{"Stats.Disk", s.DiskTotal == 21.46 && s.DiskUsed == 11.92 && s.DiskPct == 55.57},
 		{"Stats.Bandwidth", s.Bandwidth == [2]uint64{5120, 81920}},
 		{"Stats.NetworkInterfaces", s.NetworkInterfaces["EIA0"] == [4]uint64{5120, 81920, 82151203, 88139130}},
@@ -118,7 +121,7 @@ func TestCombinedData(t *testing.T) {
 		{"Stats.ExtraFs internal fields unset", s.ExtraFs["Tools"] != nil && !s.ExtraFs["Tools"].Root && s.ExtraFs["Tools"].Name == ""},
 		{"Info.Threads", i.Threads == 2},
 		{"Info.Uptime", i.Uptime == 28020},
-		{"Info.AgentVersion", i.AgentVersion == "0.21.0"},
+		{"Info.AgentVersion", i.AgentVersion == "0.21.1"},
 		{"Info.BandwidthBytes", i.BandwidthBytes == 5120+81920},
 		{"Info.ConnectionType", i.ConnectionType == system.ConnectionTypeWebSocket},
 		{"Info.ExtraFsPct", i.ExtraFsPct["Tools"] == 43.62},
@@ -230,7 +233,17 @@ func TestUpstreamOmissions(t *testing.T) {
 		keys = append(keys, strings.TrimSpace(strings.ToLower(hex.EncodeToString([]byte{byte(k.(uint64))}))))
 	}
 	sort.Strings(keys)
-	if !reflect.DeepEqual(keys, []string{"00", "01", "02", "03"}) {
-		t.Errorf("FsStats encodes keys %v; we send 0, 1, 2, 3", keys)
+	if !reflect.DeepEqual(keys, []string{"00", "01"}) {
+		t.Errorf("FsStats encodes keys %v; we send 0, 1", keys)
+	}
+
+	// An idle sample: no memory or swap bytes, so keys 41 and 42 are left out
+	b, _ = cbor.Marshal(system.Stats{})
+	m = map[any]any{}
+	_ = cbor.Unmarshal(b, &m)
+	for _, k := range []uint64{41, 42} {
+		if _, ok := m[k]; ok {
+			t.Errorf("Stats{} encodes key %d; we leave it out when zero", k)
+		}
 	}
 }

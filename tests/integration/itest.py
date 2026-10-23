@@ -3,7 +3,7 @@
 
     tests/integration/itest.py [agent-binary]      (default build/beszel_agent-asan)
 
-Runs against the private reference hub (tools/refhub.sh, upstream's 0.21.0
+Runs against the private reference hub (tools/refhub.sh, upstream's 0.21.1
 release binary) and checks, with a fresh system each run:
 
   1. the hub accepts the agent and marks the system "up";
@@ -141,8 +141,15 @@ def main():
             check(det["hostname"] == "stubvms" and det["cores"] == 2 and det["memory"] == 8 << 30, "hostname, cores, memory")
         rec = system(sid)
         info = rec.get("info") or {}
-        check(info.get("v") == "0.21.0" and info.get("ct") == 2, "agent version 0.21.0 over WebSocket")
+        check(info.get("v") == "0.21.1" and info.get("ct") == 2, "agent version 0.21.1 over WebSocket")
         check("Tools" in (info.get("efs") or {}), "extra filesystem Tools reported in info")
+        # 0.21.1's byte fields: the hub stores ours as sent.  Had it converted the GB
+        # fields instead, 128 MiB of swap (0.13 GB) would come back as 139586437.
+        st = wait(lambda: (lambda r: r["items"][0]["stats"] if r["items"] else None)(
+            api('/api/collections/system_stats/records?filter=(system="%s")&sort=-created' % sid)), 90)
+        check(st is not None and st.get("swap") == [2 << 30, 128 << 20], "swap bytes stored as sent")
+        check(st is not None and (st.get("mem") or [0])[0] == 8 << 30 and len(st.get("mem")) == 4,
+              "memory bytes stored as sent")
 
         step("3. real-time view: ~1 reply a second for 10 s")
         tok = refhub("token").strip()
