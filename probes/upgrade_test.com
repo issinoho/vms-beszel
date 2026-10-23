@@ -1,4 +1,4 @@
-$! upgrade_test.com - vms2 upgrade test (system-wide: approved by the user).
+$! upgrade_test.com - kit upgrade test (system-wide: needs the user's approval each release).
 $!   @upgrade_test <kit-dir>   stop the agent, install the new kit over the old
 $!                             one, then run the boot path as a boot would:
 $!                             BESZEL$USER deassigned, @SYS$STARTUP:BESZEL$STARTUP

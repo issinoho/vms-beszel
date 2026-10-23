@@ -93,3 +93,29 @@ vms1 ("V0.21-0E2 installed, V0.21-0E1 removed"), then `BESZEL$USER` deassigned a
 `@SYS$STARTUP:BESZEL$STARTUP` run as a boot would. The startup defined `BESZEL$USER = BESZEL`
 and started the agent as BESZEL with TMPMBX and NETMBX only. It logged 0.21.0-vms2 and
 connected to the hub with the kept `AGENT.CONF` and fingerprint (x86 01:16:12, IA64 01:18:17).
+
+## 0.21.1-vms1 (2026-10-23): following upstream 0.21.1
+
+Upstream released beszel 0.21.1 on 2026-10-22. This release moves the pin to it and sends
+memory and swap in bytes (DECISIONS.md D16, PROTOCOL.md section 10). Linux tests: unit and
+sanitizer builds, fuzzing, the conformance tests against the 0.21.1 tree, and
+`tests/integration/itest.py` against the 0.21.1 release hub.
+
+| Kit | SHA-256 |
+|---|---|
+| `ISSINOHO-X86VMS-BESZEL-V0021-1E1-1.PCSI` | `1763cd128bdf0c585f0ec3a59059e7ec2df4a72c3869de981a7c44d0446ba12c` |
+| `ISSINOHO-I64VMS-BESZEL-V0021-1E1-1.PCSI` | `f4a24adcbf50edb5c9fc58a25aedddcb69c3491b78fadca6a01d2a479287277f` |
+
+Native tests: 229 checks, 0 failed, on both. The first IA64 `tools/kit.sh` run came back with
+an empty build log after the `@build_vms TEST` step; a rerun built and passed, so it was the
+remote session, not the build.
+
+Upgrade test (`probes/upgrade_test.com`, approved by the user and run by them from this
+session, both nodes): `BESZEL$CONTROL STOP`, then `PRODUCT INSTALL` of vms1 over 0.21.0-vms2
+("V0.21-1E1 installed, V0.21-0E2 removed"), then `BESZEL$USER` deassigned and
+`@SYS$STARTUP:BESZEL$STARTUP` run as a boot would. On each node the startup defined
+`BESZEL$USER = BESZEL` and started the agent as BESZEL with TMPMBX and NETMBX only. It logged
+`0.21.1-vms1 (protocol 0.21.1)` and connected to the user's hub with the kept `AGENT.CONF` and
+fingerprint (x86 20:28:48, IA64 20:30:26). That hub is still 0.21.0, so this also covers an
+older hub, which reads the GB fields the agent still sends.
+

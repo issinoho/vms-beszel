@@ -5,13 +5,13 @@
 # Beszel agent for OpenVMS
 
 ![OpenVMS](https://img.shields.io/badge/OpenVMS-IA64%20%7C%20x86--64-blue)
-![beszel](https://img.shields.io/badge/beszel%20hub-0.21.0-green)
+![beszel](https://img.shields.io/badge/beszel%20hub-0.21.1-green)
 [![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
 A native agent for [beszel](https://beszel.dev), the lightweight server monitor, so your
 **OpenVMS** systems (x86-64 and Integrity/IA64) appear in your beszel hub next to everything
 else. You get live charts, history and alerts for CPU, memory, swap, disks, network and load.
-It works with an unmodified beszel hub, version **0.21.0**.
+It works with an unmodified beszel hub, version **0.21.1** (and 0.21.0).
 
 Beszel's own agent is written in Go, which doesn't run on OpenVMS. This one is written in C
 for OpenVMS and speaks the same protocol, checked byte for byte against beszel's own code. It
@@ -26,10 +26,11 @@ belongs to the [vms-* family](https://openvms.issinoho.com) of open-source tools
 - **Light:** a working set of a few megabytes. After the first connection (a few seconds of CPU
   for the TLS handshake on x86), it uses very little CPU between the hub's once-a-minute requests.
 
-> **Status:** the current release, **v0.21.0-vms2**, has PCSI kits for x86-64 and
+> **Status:** the current release, **v0.21.1-vms1**, has PCSI kits for x86-64 and
 > Integrity on the [releases page](https://github.com/issinoho/vms-beszel/releases).
-> It fixes vms1's `BESZEL$STARTUP.COM`, which never started the agent at boot.
-> Both architectures were tested, including a 24-hour run against a real hub.
+> It follows beszel 0.21.1: memory and swap are now also sent in bytes, which hubs
+> from 0.21.1 on store directly. Both architectures were tested, including a 24-hour
+> run against a real hub (with 0.21.0-vms2) and an upgrade from 0.21.0-vms2.
 
 ## What you see in the hub
 
@@ -63,7 +64,7 @@ line at zero: OpenVMS counts disk operations but not bytes, and the agent won't 
 
 - OpenVMS **x86-64** (tested on E9.2-4) or **Integrity** (tested on V8.4-2L3).
 - VSI **TCP/IP Services** and VSI's **SSL3** kit (OpenSSL 3.0), both standard on current systems.
-- A beszel **hub, version 0.21.0**, that the OpenVMS system can reach. A hub behind a reverse
+- A beszel **hub, version 0.21.1 or 0.21.0**, that the OpenVMS system can reach. A hub behind a reverse
   proxy works, with or without a path prefix (tested with Nginx Proxy Manager).
 
 ## 1. Add the system in your hub
@@ -128,7 +129,7 @@ $ @SYS$STARTUP:BESZEL$STARTUP.COM          ! or @BESZEL$ROOT:[COM]BESZEL$CONTROL
 ```
 
 **If you installed vms1:** its `BESZEL$STARTUP.COM` never starts the agent at boot, even when
-you chose to, so upgrade to vms2 if the agent should come back after a reboot.
+you chose to, so upgrade to the current release if the agent should come back after a reboot.
 
 Then go on to step 3.
 
