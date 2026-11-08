@@ -14,7 +14,8 @@ version=$(sed -n 's/^#define BZ_PORT_VERSION *"\(.*\)"/\1/p' "$top/src/core/bz_v
 pcsiversion=$(sed -n 's/^#define BZ_PCSI_VERSION *"\(.*\)"/\1/p' "$top/src/core/bz_version.h")
 [ -n "$version" ] && [ -n "$pcsiversion" ] || { echo "kit: no version in bz_version.h" >&2; exit 1; }
 read -r _ ARCH _ _ _ _ _ < <(awk -v n="$node" '$1==n' "$top/tools/nodes.conf")
-case $ARCH in [Xx]86*) base=X86VMS; archname=x86-64 ;; *) base=I64VMS; archname=Integrity ;; esac
+case ${ARCH^^} in X86*) base=X86VMS; archname=x86-64 ;; ALPHA*|AXP*) base=AXPVMS; archname=Alpha ;;
+    IA64*|I64*) base=I64VMS; archname=Integrity ;; *) echo "kit: unknown architecture '$ARCH' in tools/nodes.conf" >&2; exit 1 ;; esac
 # One kit at a time: every build shares out/kitstage.
 mkdir -p "$top/out"; exec 9> "$top/out/.kit.lock"
 flock -n 9 || { echo "kit: another kit.sh is running (out/kitstage is shared)" >&2; exit 1; }

@@ -5,3 +5,4 @@
 # name  arch    host          port  user      vms_workdir                       sftp_workdir
 ia64    IA64    <ia64-host>   22    username  DISK$USER:[USERNAME.VMS_BESZEL]   vms_beszel
 x86     X86_64  <x86-host>    22    username  DISK$USER:[USERNAME.VMS_BESZEL]   vms_beszel
+alpha    ALPHA    <alpha-host>   22    username  DISK$USER:[USERNAME.VMS_BESZEL]   vms_beszel

@@ -15,6 +15,7 @@ $ set default [-]
 $ arch = f$edit(f$getsyi("ARCH_NAME"), "UPCASE")
 $ base = "I64VMS"
 $ if arch .eqs. "X86_64" then base = "X86VMS"
+$ if arch .eqs. "ALPHA" then base = "AXPVMS"
 $!
 $! KIT_PRODUCER, KIT_PRODUCT, PCSI_VERSION, KIT_VERSION from KIT.ENV
 $ open/read env [.KIT]KIT.ENV
