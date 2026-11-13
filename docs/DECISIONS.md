@@ -329,3 +329,27 @@ Alternatives: stay on 0.21.0. Rejected: the hub is unmodified upstream, so users
 their hub would run ahead of our tested version. A 0.21.0 agent still works with a 0.21.1
 hub, but the GB fields will eventually go.
 
+
+## D17. Stay on 0.21.1 when upstream releases 0.21.2
+
+**Status:** approved by the user (2026-11-13): "has there been an upstream release we
+should follow?", then "stay".
+
+Upstream released 0.21.2 on 2026-11-12 (tag v0.21.2, commit c97759f0ca4b). The pin stays
+at 0.21.1 because nothing in the release changes our protocol. Checked against the
+v0.21.1...v0.21.2 compare:
+
+- `internal/common` is unchanged. In `internal/entities/system/system.go` the only change
+  is a new `Battery.UnmarshalJSON` on the hub's JSON side; no CBOR tag changed.
+- `internal/entities/smart/smart.go` changes the agent's smartctl parse types
+  (NVMeCounter), not the wire. We only pass the GetSmartData action ID through.
+- Hub ingest (`internal/hub/systems/system.go`) now drops null Containers, ExtraFs and
+  ZfsPools entries, and only updates container, systemd, SMART and ZFS records owned by
+  the system that reports them. We send no nulls and none of those records.
+- Agent changes are Go collectors for Linux and macOS. The one in
+  `agent/connection_manager.go` (a slow dial outlasting the retry interval) is specific
+  to the Go agent.
+
+Alternatives: move the pin to 0.21.2 and rerun the conformance tests against its hub
+(rejected for now: no wire change, so it is cost with no benefit to users). Revisit at the
+next upstream release, or if a 0.21.2 hub misbehaves with our agent.
