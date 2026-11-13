@@ -67,7 +67,16 @@ the agent as it, and removes; `probes/install_test.com`'s carry-over steps don't
 | `BESZEL$CONTROL STOP` | During the 60 s wait: `did not stop in 20 s: stopping process` (the run loop checks STOP. only between runs). The STOP. file stays; START deletes it |
 | `PRODUCT REMOVE BESZEL` | `BESZEL$ROOT` and `BESZEL$USER` deassigned; no agent process; `[CONF]AGENT.CONF`, `[DATA]STOP.` and the log kept |
 
-The BESZEL account and SYS$MANAGER:BESZEL$CONFIG.COM remain on AXPBOX. Not yet: a hub.
+The BESZEL account and SYS$MANAGER:BESZEL$CONFIG.COM remain on AXPBOX.
+
+**Joined the user's hub (approved, 2026-11-13).** The kit reinstalled, `BESZEL$CONFIGURE
+BESZEL "" YES` (the existing account re-checked, start at boot YES), and `AGENT.CONF;2` with
+the hub's `HUB_URL` (as on x86), `KEY` and a token for the new system from its Add System
+dialog, owned by BESZEL with (S:RWED,O:RWED,G,W); the copy used to carry it was erased.
+`BESZEL$CONTROL START`: `BESZEL$RUN starting … as BESZEL with TMPMBX,NETMBX`, then
+`WebSocket connected host=<hub-host>` six seconds later. SYSTARTUP_VMS.COM;43 runs
+BESZEL$STARTUP and SYSHUTDWN.COM;10 BESZEL$SHUTDOWN (recorded in the site's own
+configuration). Not yet seen: a real boot starting it.
 
 ## Found and fixed
 
