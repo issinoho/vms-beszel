@@ -76,7 +76,9 @@ dialog, owned by BESZEL with (S:RWED,O:RWED,G,W); the copy used to carry it was 
 `BESZEL$CONTROL START`: `BESZEL$RUN starting … as BESZEL with TMPMBX,NETMBX`, then
 `WebSocket connected host=<hub-host>` six seconds later. SYSTARTUP_VMS.COM;43 runs
 BESZEL$STARTUP and SYSHUTDWN.COM;10 BESZEL$SHUTDOWN (recorded in the site's own
-configuration). Not yet seen: a real boot starting it.
+configuration). **A real boot, 2026-11-13 16:44:** the user rebooted AXPBOX; one minute
+after, `BESZEL_AGENT` was running (`BESZEL$USER` = BESZEL) with an established TCP connection
+to the hub's public address on port 443, started by SYSTARTUP_VMS's `st_11`.
 
 ## Release 0.21.1-vms2: OpenVMS Alpha (2026-11-13)
 
