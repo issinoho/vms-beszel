@@ -254,6 +254,25 @@ OpenVMS V8.4-2L3 on an rx2660 (1 active CPU, VSI C 7.4-001).
     the local was deleted. The Phase 4 install test missed it because it started the
     agent with BESZEL$CONTROL START and never rebooted. The defaults are now global.
 
+## OpenVMS Alpha
+
+47. **On Alpha, `RMI$_FRLIST` and `RMI$_MODLIST` are longwords.** An 8-byte buffer gets
+    SS$_BADPARAM (item 1), so `rmi_u(..., 8)` returned 0 for both and the agent showed
+    all memory as used: on AXPBOX (Alpha V8.4-2L2, Charon-AXP DS10L), `--sample` said
+    `used 4.00 GiB (100.00%)` while SHOW MEMORY said 3.80 GB free (2026-11-13).
+    `rmi_u()` now asks again with 4 bytes when the quadword read fails: `used 0.20 GiB
+    (4.89%)` against SHOW MEMORY's 0.19 GB in use. x86 and IA64 still take 8 bytes. vms-hass
+    and VTOP met the same thing; vmsotel found it with a probe (its findings A6).
+48. **The Alpha has no system UUID.** `F$GETSYI("SYSTEM_UUID")` is 32 zeros on AXPBOX
+    (Charon-AXP gives the emulated DS10L none), and `SERIAL_NUMBER` is a placeholder,
+    `SN01234567`. So the fingerprint seed takes item 8's fallback, host name plus CPU
+    model: `fp seed axpbox.issinoho.comAlphaServer DS10L`. That is stable while the host
+    name and the hardware name stay as they are; a rename would change the fingerprint,
+    and the hub would then reject the agent until the system's fingerprint is reset there.
+49. **build_vms's `/FLOAT=IEEE_FLOAT/IEEE_MODE=DENORM_RESULTS` already covers Alpha**, whose
+    C defaults to G_FLOAT. `build_vms TEST` on AXPBOX: `BUILD-OK`, `229 checks, 0 failed`;
+    `check_metrics`: CPU 89.19% idle against MONITOR MODES' 89.09%.
+
 ## Linux workstation
 
 21. **`pkill -f <pattern>` matches the shell running it** and killed the tool's own command

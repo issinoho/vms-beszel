@@ -283,9 +283,13 @@ static uint64_t rmi_u(int code, int size)
 {
     uint64_t v = 0;
     if (size == 8) {
-        if (!rmi(code, &v, 8))
-            return 0;
-        return v;
+        unsigned int w = 0;
+        if (rmi(code, &v, 8))
+            return v;
+        /* OpenVMS Alpha returns RMI$_FRLIST and RMI$_MODLIST as longwords and
+           refuses a quadword buffer with SS$_BADPARAM, so both read 0 and all
+           memory showed as used (NOTES.md 47).  x86 and IA64 take 8 bytes. */
+        return rmi(code, &w, 4) ? w : 0;
     } else {
         unsigned int w = 0;
         if (!rmi(code, &w, 4))
