@@ -78,6 +78,18 @@ dialog, owned by BESZEL with (S:RWED,O:RWED,G,W); the copy used to carry it was 
 BESZEL$STARTUP and SYSHUTDWN.COM;10 BESZEL$SHUTDOWN (recorded in the site's own
 configuration). Not yet seen: a real boot starting it.
 
+## Release 0.21.1-vms2: OpenVMS Alpha (2026-11-13)
+
+A dedicated Alpha release (the family's policy for Alpha kits). Its only change from vms1 is
+`rmi_u()`'s longword retry (NOTES.md 47), which matters only on Alpha, so x86-64 and IA64 stay
+on vms1 and vms2 has the AXPVMS kit alone. Built for OpenVMS Alpha V8.4-2L1 or later
+(`/ARCHITECTURE` left at GENERIC); tested on V8.4-2L2.
+
+| Step | AXPBOX (Alpha V8.4-2L2, VSI C V7.4-002) |
+|---|---|
+| `tools/kit.sh alpha` | `ISSINOHO-AXPVMS-BESZEL-V0021-1E2-1.PCSI`, 229 checks, 0 failed; SHA-256 `0593c916b5a96bedd9fa748409054410c247bdeb05e1d9890334688e09ff1781` |
+| `probes/upgrade_test.com` (approved) | Over V0.21-1E1: `PCSI-I-FORCEDUPG … V0.21-1E1 implicitly removed`, V0.21-1E2 installed; `BESZEL$USER` deassigned and `BESZEL$STARTUP` run as a boot would: `started as BESZEL`, `with TMPMBX,NETMBX`, `beszel agent for OpenVMS 0.21.1-vms2`, `WebSocket connected` to the user's hub ten seconds later, with the kept AGENT.CONF and fingerprint |
+
 ## Found and fixed
 
 - **`BESZEL$CONTROL` left a process logical name behind** (NOTES.md 44). On IA64, stopping the

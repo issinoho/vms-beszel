@@ -4,12 +4,12 @@
 
 # Beszel agent for OpenVMS
 
-![OpenVMS](https://img.shields.io/badge/OpenVMS-IA64%20%7C%20x86--64-blue)
+![OpenVMS](https://img.shields.io/badge/OpenVMS-IA64%20%7C%20x86--64%20%7C%20Alpha-blue)
 ![beszel](https://img.shields.io/badge/beszel%20hub-0.21.1-green)
 [![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
 A native agent for [beszel](https://beszel.dev), the lightweight server monitor, so your
-**OpenVMS** systems (x86-64 and Integrity/IA64) appear in your beszel hub next to everything
+**OpenVMS** systems (x86-64, Integrity/IA64 and Alpha) appear in your beszel hub next to everything
 else. You get live charts, history and alerts for CPU, memory, swap, disks, network and load.
 It works with an unmodified beszel hub, version **0.21.1** (and 0.21.0).
 
@@ -26,11 +26,12 @@ belongs to the [vms-* family](https://openvms.issinoho.com) of open-source tools
 - **Light:** a working set of a few megabytes. After the first connection (a few seconds of CPU
   for the TLS handshake on x86), it uses very little CPU between the hub's once-a-minute requests.
 
-> **Status:** the current release, **v0.21.1-vms1**, has PCSI kits for x86-64 and
-> Integrity on the [releases page](https://github.com/issinoho/vms-beszel/releases).
-> It follows beszel 0.21.1: memory and swap are now also sent in bytes, which hubs
-> from 0.21.1 on store directly. Both architectures were tested, including a 24-hour
-> run against a real hub (with 0.21.0-vms2) and an upgrade from 0.21.0-vms2.
+> **Status:** PCSI kits are on the [releases page](https://github.com/issinoho/vms-beszel/releases):
+> **v0.21.1-vms2** for **Alpha**, and **v0.21.1-vms1** for **x86-64** and **Integrity**. Both
+> follow beszel 0.21.1: memory and swap are also sent in bytes, which hubs from 0.21.1 on store
+> directly. vms2 differs from vms1 only in a fix that matters on Alpha, so x86-64 and Integrity
+> stay on vms1. x86-64 and Integrity were tested with a 24-hour run against a real hub and an
+> upgrade from 0.21.0-vms2; Alpha with an install, an upgrade, and its own hub connection.
 
 ## What you see in the hub
 
@@ -52,7 +53,8 @@ agent. Host names and addresses have been replaced.</em></p>
 | Uptime, host name, CPU model, CPU count, memory size | from the system |
 | Alerts | every alert beszel offers for these: CPU, memory, disk, bandwidth, load average, and "system down" |
 
-The system's OS shows as "OpenVMS E9.2-4 (x86-64)" or "OpenVMS V8.4-2L3 (Integrity)", next to
+The system's OS shows as "OpenVMS E9.2-4 (x86-64)", "OpenVMS V8.4-2L3 (Integrity)" or
+"OpenVMS V8.4-2L2 (Alpha)", next to
 beszel's Linux penguin: the hub knows only four operating systems, and choosing any other would
 break its system page.
 
@@ -62,7 +64,8 @@ line at zero: OpenVMS counts disk operations but not bytes, and the agent won't 
 
 ## Requirements
 
-- OpenVMS **x86-64** (tested on E9.2-4) or **Integrity** (tested on V8.4-2L3).
+- OpenVMS **x86-64** (tested on E9.2-4), **Integrity** (tested on V8.4-2L3) or **Alpha**
+  (V8.4-2L1 or later; tested on V8.4-2L2).
 - VSI **TCP/IP Services** and VSI's **SSL3** kit (OpenSSL 3.0), both standard on current systems.
 - A beszel **hub, version 0.21.1 or 0.21.0**, that the OpenVMS system can reach. A hub behind a reverse
   proxy works, with or without a path prefix (tested with Nginx Proxy Manager).
@@ -87,7 +90,7 @@ its own system. Set `TOKEN` to the universal token and, optionally, `SYSTEM_NAME
 
 ### With the PCSI kit
 
-Download the kit for your architecture (`X86VMS` or `I64VMS`) from the
+Download the kit for your architecture (`X86VMS`, `I64VMS` or `AXPVMS`) from the
 [releases page](https://github.com/issinoho/vms-beszel/releases) and check it against the
 release's `SHA256SUMS`. A kit copied through a non-VMS system loses its record format, so
 restore that first. Then, as SYSTEM:
