@@ -52,6 +52,23 @@ Tree after configuring: `[BIN]`, `[COM]` and `[DOC]` belong to SYSTEM and are wo
 (S:RWED,O:RWED,G,W). The Phase 3 test trees (`[.ROOT]`, `[.RUN]`, `[.SOAK]`) are deleted from
 both nodes with `/ERASE`; the soak data is in `out/soak/`.
 
+### OpenVMS Alpha (AXPBOX, V8.4-2L2; approved by the user, 2026-11-13)
+
+No test tree and no hub on the Alpha, so the test installs, creates the account, starts
+the agent as it, and removes; `probes/install_test.com`'s carry-over steps don't apply.
+
+| Step | Result |
+|---|---|
+| Kit | `ISSINOHO-AXPVMS-BESZEL-V0021-1E1-1.PCSI` (409600 bytes) after `build_vms TEST`: 229 checks, 0 failed. Rebuilt afterwards by the batch-mode `kit.sh`, from the same source (a new SHA-256: PCSI records the build time) |
+| UIC group 377 free | AUTHORIZE: `%UAF-W-BADSPC, no user matches specification` |
+| `PRODUCT INSTALL BESZEL` | `BESZEL$ROOT` = `AXPBOX$DKA0:[SYS0.SYSCOMMON.BESZEL.]` |
+| `BESZEL$CONFIGURE BESZEL [377,1] NO` | Account created: owner "beszel agent", no login class, `DisCtlY LockPwd`, NETMBX and TMPMBX; `[CONF]`, `[DATA]`, `[LOG]` BESZEL's with no group or world access; `[BIN]`, `[COM]`, `[DOC]` world-readable; AGENT.CONF from its template |
+| `BESZEL$CONTROL START` | `beszel_launch: process 000025BA started as BESZEL`. With the template's placeholder key the agent exits (`KEY: key line 1: invalid ssh-ed25519 key data`) and BESZEL$RUN restarts it after 15, 30, 60 s, as designed |
+| `BESZEL$CONTROL STOP` | During the 60 s wait: `did not stop in 20 s: stopping process` (the run loop checks STOP. only between runs). The STOP. file stays; START deletes it |
+| `PRODUCT REMOVE BESZEL` | `BESZEL$ROOT` and `BESZEL$USER` deassigned; no agent process; `[CONF]AGENT.CONF`, `[DATA]STOP.` and the log kept |
+
+The BESZEL account and SYS$MANAGER:BESZEL$CONFIG.COM remain on AXPBOX. Not yet: a hub.
+
 ## Found and fixed
 
 - **`BESZEL$CONTROL` left a process logical name behind** (NOTES.md 44). On IA64, stopping the

@@ -272,6 +272,12 @@ OpenVMS V8.4-2L3 on an rx2660 (1 active CPU, VSI C 7.4-001).
 49. **build_vms's `/FLOAT=IEEE_FLOAT/IEEE_MODE=DENORM_RESULTS` already covers Alpha**, whose
     C defaults to G_FLOAT. `build_vms TEST` on AXPBOX: `BUILD-OK`, `229 checks, 0 failed`;
     `check_metrics`: CPU 89.19% idle against MONITOR MODES' 89.09%.
+50. **Interactive ssh to the Alpha loses long runs.** `tools/kit.sh alpha` stopped at once
+    with an empty `out/kit-build-alpha.log`: `vms.sh dcl '@build_vms TEST'` returned with no
+    output (2026-11-13). vmsotel saw the same on AXPBOX: the session ends while the procedure
+    runs on, or the procedure never starts. The same steps as a batch job (`vms.sh batch`)
+    built, tested (229 checks, 0 failed) and packaged the kit. kit.sh now builds and packages
+    by batch job on every node.
 
 ## Linux workstation
 
